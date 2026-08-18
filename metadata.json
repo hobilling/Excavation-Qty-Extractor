@@ -1,0 +1,6 @@
+{
+  "name": "CivilEngine Pro",
+  "description": "Precision Earthwork Takeoff and Interactive DXF Grid Inspector",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

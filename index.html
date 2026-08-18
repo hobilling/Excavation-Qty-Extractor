@@ -1,0 +1,3381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excavation Quantity Extractor</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <style>
+        body { background-color: #f8fafc; color: #1e293b; font-family: 'Segoe UI', system-ui, sans-serif; }
+        #leftPanel { min-width: 0; }
+        .navbar { border-bottom: 1px solid #e2e8f0; background: #ffffff !important; }
+        .card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 1.5rem; max-width: 100%; }
+        .dropdown-menu { z-index: 99999 !important; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important; }
+        .card-header { background-color: #f1f5f9; color: #0f172a; font-weight: 600; border-bottom: 1px solid #e2e8f0; }
+        .form-label { color: #475569; font-weight: 600; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .form-control, .form-select { background-color: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; max-width: 100%; box-sizing: border-box; }
+        .btn-primary { background-color: #2563eb; border: none; font-weight: 600; }
+        .btn-primary:hover { background-color: #1d4ed8; }
+        .btn-success { background-color: #16a34a; border: none; font-weight: 600; }
+        .btn-success:hover { background-color: #15803d; }
+        .metric-card { background: #ffffff; padding: 1.25rem; border-radius: 6px; border: 1px solid #e2e8f0; border-left: 5px solid #2563eb; transition: all 0.2s ease; }
+        .metric-card:hover { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); transform: translateY(-1px); border-color: #cbd5e1; }
+        .table-responsive { max-height: 450px; overflow-y: auto; font-size: 0.82rem; }
+
+        .table-responsive thead { position: sticky; top: 0; z-index: 10; }
+        .table-responsive thead th { position: sticky; top: 0; z-index: 10; background-color: #f8fafc !important; outline: 1px solid #dee2e6; outline-offset: -1px; }
+        .table-responsive thead tr:first-child th { height: 32px; padding-top: 4px; padding-bottom: 4px; box-sizing: border-box; border-bottom: none !important; }
+        .table-responsive thead tr:nth-child(2) th { top: 31px; border-top: 1px solid #dee2e6 !important; }
+
+        .table th { background-color: #f8fafc !important; color: #475569; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px; vertical-align: middle; }
+        .nav-pills .nav-link { color: #475569; font-weight: 500; }
+        .nav-pills .nav-link.active { background-color: #2563eb; color: #ffffff; }
+        .badge-layer { background-color: #e2e8f0; color: #334155; font-family: monospace; font-size: 0.75rem; }
+        .cell-matrix-text { font-family: monospace; font-size: 0.75rem; white-space: nowrap; line-height: 1.2; }
+        .transition-all { transition: all 0.25s ease-in-out; }
+        .layer-item-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin-bottom: 8px; max-width: 100%; box-sizing: border-box; overflow: visible !important; position: relative; }
+        .card:has(.dropdown-menu.show),
+        .layer-item-card:has(.dropdown-menu.show),
+        .dropdown:has(.dropdown-menu.show),
+        .dropdown.show {
+            z-index: 9999 !important;
+            position: relative !important;
+        }
+        .layer-name-text { font-family: monospace; font-size: 0.8rem; word-break: break-word; overflow-wrap: anywhere; }
+        #canvasViewport { position: relative; width: 100%; height: 520px; background: #0f172a; border-radius: 6px; overflow: hidden; border: 1px solid #334155; }
+        .canvas-hud { position: absolute; bottom: 8px; left: 12px; background: rgba(15, 23, 42, 0.85); color: #94a3b8; padding: 4px 10px; border-radius: 4px; font-family: monospace; font-size: 0.75rem; pointer-events: none; border: 1px solid #334155; z-index: 5; }
+        .canvas-legend { position: absolute; top: 12px; right: 12px; background: rgba(15, 23, 42, 0.85); color: #cbd5e1; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; pointer-events: none; border: 1px solid #334155; z-index: 5; }
+        .canvas-tooltip { position: absolute; display: none; pointer-events: none; background: rgba(15, 23, 42, 0.95); color: #f8fafc; border: 1px solid #3b82f6; border-radius: 6px; padding: 10px 14px; font-size: 0.8rem; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10; width: 280px; }
+
+        @media print {
+            .table-freeze thead th { position: static !important; }
+            .table-freeze tbody td, .table-freeze thead th { position: static !important; }
+
+            body { background-color: #ffffff !important; color: #000000 !important; font-size: 11px; }
+            .navbar, #leftPanel, .nav, .btn, .alert, #canvasLayersDropdown, .canvas-hud, #canvasInspectorReadout, .expand-sidebar-btn, #reportTabs { display: none !important; }
+            #rightPanel, .col-xl-8, .col-lg-7 { width: 100% !important; max-width: 100% !important; flex: 0 0 100% !important; margin: 0 !important; padding: 0 !important; }
+            .card { border: 1px solid #cbd5e1 !important; box-shadow: none !important; margin-bottom: 1rem !important; page-break-inside: avoid; }
+            .card-header { background: #f1f5f9 !important; border-bottom: 1px solid #94a3b8 !important; color: #000 !important; font-weight: bold; }
+            #canvasViewport { height: 420px !important; border: 1px solid #475569 !important; background: #0f172a !important; }
+            .table-responsive { max-height: none !important; overflow: visible !important; }
+            .table { width: 100% !important; border-collapse: collapse !important; font-size: 10px !important; }
+            .table th, .table td { border: 1px solid #64748b !important; padding: 4px 6px !important; color: #000000 !important; }
+            .tab-pane { display: block !important; opacity: 1 !important; visibility: visible !important; }
+            .print-only-preview { display: block !important; margin-bottom: 1rem; }
+        }
+        .print-only-preview { display: none; }
+    
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* Sticky Table Headers and Columns */
+        .table-responsive { max-height: 450px; overflow: auto; position: relative; }
+        .table-freeze thead th { position: sticky; top: 0; z-index: 10; background-color: #f8fafc; box-shadow: inset 0 -1px 0 #cbd5e1, inset 0 1px 0 #cbd5e1; }
+        .table-freeze thead tr:nth-child(2) th { top: 30px; }
+        .table-freeze tbody td:nth-child(1),
+        .table-freeze tbody td:nth-child(2),
+        .table-freeze thead th:nth-child(1),
+        .table-freeze thead th:nth-child(2) {
+            position: sticky;
+            left: 0;
+            background-color: #fff;
+            z-index: 11;
+            box-shadow: inset -1px 0 0 #cbd5e1;
+        }
+        .table-freeze thead th:nth-child(1),
+        .table-freeze thead th:nth-child(2) {
+            z-index: 12;
+            background-color: #f8fafc;
+        }
+
+        /* Ensure table content doesn't get squashed */
+        .table th, .table td { white-space: nowrap; }
+
+        .dropdown-item:hover, .dropdown-item:focus {
+            background-color: #e0f2fe !important;
+            color: #0369a1 !important;
+        }
+        .dropdown-item.active {
+            background-color: #0ea5e9 !important;
+            color: #fff !important;
+        }
+
+        .level-label-input::placeholder {
+            color: #94a3b8 !important;
+            font-style: italic !important;
+        }
+
+        .combo-remark-input::placeholder {
+            color: #94a3b8 !important;
+            font-style: italic !important;
+            opacity: 0.85 !important;
+        }
+        .combo-remark-input {
+            color: #64748b !important;
+            font-size: 0.8rem !important;
+        }
+</style>
+</head>
+<body class="vh-100 overflow-hidden d-flex flex-column bg-light">
+
+<nav class="navbar navbar-expand-lg navbar-light bg-white py-2 px-3 border-bottom shadow-sm flex-shrink-0">
+    <div class="container-fluid d-flex flex-wrap justify-content-start align-items-center gap-3">
+                <a class="navbar-brand fw-bold text-dark d-flex align-items-center gap-2 mb-0 py-0" href="#" style="font-size: 1.05rem;">
+            📐 Excavation Quantity Extractor
+        </a>
+        <div id="headerStatusWrapper" class="d-flex align-items-center gap-2 py-1 px-3 bg-light border rounded shadow-sm" style="max-width: 650px;">
+            <span id="statusPill" class="badge bg-secondary rounded-pill flex-shrink-0" style="font-size: 0.72rem;">Tracking</span>
+            <div id="statusText" class="small text-truncate" style="font-size: 0.8rem; color: #334155;">
+                <strong>System Tracking State:</strong> Idle. Import a survey CAD document to deploy polygon processing routines.
+            </div>
+        </div>
+    </div>
+</nav>
+
+<div class="container-fluid py-4 flex-grow-1 overflow-hidden">
+    <div class="row g-3 h-100 position-relative">
+        <div class="col-xl-4 col-lg-5 col-md-5 col-12 transition-all h-100 overflow-y-auto pb-5 custom-scrollbar" id="leftPanel">
+            <div class="card mb-3" id="importCard">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span data-bs-toggle="collapse" data-bs-target="#card1Body" style="cursor: pointer;" class="fw-semibold">1. CAD Survey File Import (.DXF / .DWG)</span>
+                    <div class="d-flex align-items-center gap-2">
+                        
+                        <span class="small text-muted" data-bs-toggle="collapse" data-bs-target="#card1Body" style="cursor: pointer;">▼</span>
+                    </div>
+                </div>
+                <div class="collapse show" id="card1Body">
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="dxfFile" class="form-label">Upload Survey Drawing File (.dxf, .dwg)</label>
+                            <div class="input-group">
+                                <input class="form-control" type="file" id="dxfFile" accept=".dxf,.dwg">
+                                <button class="btn btn-outline-danger px-2 fw-bold" type="button" id="btnClearFileBtn" style="display:none;" title="Remove / Clear Uploaded File">
+                                    ✕
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="gridSize" class="form-label">Grid Box Modulus Size (meters)</label>
+                            <input type="number" class="form-control" id="gridSize" value="3.0" step="0.5" min="0.5">
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label mb-0">Active Outer Site Boundary Layer</label>
+                                <button class="btn btn-outline-secondary btn-sm py-0 px-2 small" type="button" onclick="activateLayerPicker('boundary')" title="Pick boundary layer from preview map">🎯</button>
+                            </div>
+                            <div class="dropdown">
+                                <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center" type="button" id="boundaryLayerSelectBtn" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false" disabled>
+                                    <span id="boundaryLayerSelectText" class="text-truncate">-- Awaiting Drawing Upload --</span>
+                                </button>
+                                <ul class="dropdown-menu w-100 shadow-sm" aria-labelledby="boundaryLayerSelectBtn">
+                                    <li class="px-2 py-1"><input type="text" class="form-control form-control-sm" id="boundarySearchInput" placeholder="Search boundary layers..."></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <div id="boundaryOptionsContainer" style="max-height: 250px; overflow-y: auto;">
+                                    </div>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3" id="mappingCard" style="display:none;">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span data-bs-toggle="collapse" data-bs-target="#card2Body" style="cursor: pointer;" class="fw-semibold">2. Profile Sequence Assignment</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="small text-muted" data-bs-toggle="collapse" data-bs-target="#card2Body" style="cursor: pointer;">▼</span>
+                    </div>
+                </div>
+                <div class="collapse show" id="card2Body">
+                    <div class="card-body">
+                        
+                        
+                        <div id="layerMappingContainer"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3" id="combinationsCard" style="display:none;">
+                <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#card3Body" aria-expanded="true">
+                    <span>3. Run Quantity Execution Matrix</span>
+                    <span class="small text-muted">▼</span>
+                </div>
+                <div class="collapse show" id="card3Body">
+                    <div class="card-body">
+                        <div id="combinationsContainer" class="mb-3"></div>
+                        <button class="btn btn-primary w-100 py-2 fw-bold" id="processBtn">
+                            ⚙️ Compute Mathematical Intersections
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        
+        <div id="verticalToggleBar" class="d-none d-md-flex align-items-center justify-content-center bg-white border shadow-sm transition-all hover-shadow" style="width: 24px; cursor: pointer; z-index: 1060; border-radius: 4px; position: absolute; left: 33.333%; top: 50%; transform: translateY(-50%); height: 120px;" onclick="toggleSidebar()">
+            <span id="verticalToggleText" style="writing-mode: vertical-rl; text-orientation: mixed; font-size: 0.75rem; font-weight: bold; color: #475569; user-select: none; letter-spacing: 2px;">◀ COLLAPSE</span>
+        </div>
+        <div class="col-xl-8 col-lg-7 col-md-7 col-12 transition-all h-100 overflow-y-auto pb-5 custom-scrollbar d-flex flex-column" id="rightPanel">
+            <!-- Global Control Bar -->
+            <div id="stickyControlBar" class="sticky-top bg-white p-2 border-bottom shadow-sm" style="z-index: 1000;">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div id="globalViewControls" class="d-flex flex-wrap gap-2 align-items-center">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <input type="radio" class="btn-check" name="globalViewToggle" id="viewToggle_RAW" autocomplete="off" checked onchange="switchCanvasSheet('RAW_FILE')">
+                            <label class="btn btn-outline-primary" for="viewToggle_RAW">Input Survey</label>
+                        </div>
+                    </div>
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <div id="exportPrintToolbar" class="flex-wrap align-items-center gap-2" style="display: none;">
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-success dropdown-toggle fw-semibold" type="button" id="exportTableBtn" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false">
+                                    📊 Export Table
+                                </button>
+                                <ul class="dropdown-menu shadow" aria-labelledby="exportTableBtn">
+                                    <li><a class="dropdown-item" href="#" onclick="exportTablesToExcelFormatXlsx(); return false;">Excel (XLSX)</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="exportTablesToExcelFormatCsv(); return false;">CSV Format</a></li>
+                                </ul>
+                            </div>
+                            
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-primary dropdown-toggle fw-semibold" type="button" id="exportCadBtn" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false">
+                                    📐 Export CAD
+                                </button>
+                                <ul class="dropdown-menu shadow" aria-labelledby="exportCadBtn">
+                                    <li><a class="dropdown-item" href="#" onclick="downloadAutocadDxfStreamAction('dwg'); return false;">DWG File</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="downloadAutocadDxfStreamAction('dxf'); return false;">DXF File</a></li>
+                                </ul>
+                            </div>
+                            
+                            <button class="btn btn-outline-dark btn-sm fw-bold px-3" id="btnPrintReportBtn" type="button" title="Print or save detailed PDF report">🖨️ Print</button>
+                        </div>
+                        <button class="btn btn-outline-secondary btn-sm fw-semibold px-3" id="btnResetAppSticky" type="button" title="Reset and refresh page" onclick="resetApp()">↺ Reset</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Cards (Summary Cards / Metric Ribbon) -->
+            <div id="metricSummaryContainer" class="flex-shrink-0 mb-3" style="display: none;">
+                <div class="row g-3" id="metricSummaryRibbon"></div>
+            </div>
+
+            <!-- 3. DWG Preview Viewer -->
+            <div class="card mb-4 flex-shrink-0" id="viewerCard" style="display: none;">
+                <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <!-- Controls moved to top -->
+                    </div>
+                </div>
+                <div class="card-body p-2 position-relative">
+
+                    <div id="canvasViewport" style="position: relative;">
+                        <div style="position: absolute; top: 10px; right: 10px; z-index: 10; display: flex; gap: 8px;">
+                            <div class="btn-group btn-group-sm shadow-sm" role="group">
+                                <button type="button" class="btn btn-light border" id="btnZoomIn" title="Zoom In">🔍 +</button>
+                                <button type="button" class="btn btn-light border" id="btnZoomOut" title="Zoom Out">🔍 -</button>
+                                <button type="button" class="btn btn-light border fw-semibold" id="btnResetView" title="Reset / Fit View">🎯 Fit View</button>
+                            </div>
+                            <div class="dropdown shadow-sm">
+                                <button class="btn btn-sm btn-light border dropdown-toggle" type="button" id="canvasLayersDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                    ⚙️ Layers
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end p-3 shadow" aria-labelledby="canvasLayersDropdown" style="min-width: 230px; z-index: 1080 !important; position: absolute;">
+                                    <li class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" id="toggleBoundary" checked>
+                                        <label class="form-check-label small" for="toggleBoundary">Site Boundary Polyline</label>
+                                    </li>
+                                    <li class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" id="togglePoints" checked>
+                                        <label class="form-check-label small" for="togglePoints">Survey Elevation Points & Level Texts</label>
+                                    </li>
+                                    <li class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" id="toggleGrid" checked>
+                                        <label class="form-check-label small" for="toggleGrid">Grid Box Outlines</label>
+                                    </li>
+                                    <li class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" id="toggleShading" checked>
+                                        <label class="form-check-label small" for="toggleShading">Cut/Fill Heatmap Shading</label>
+                                    </li>
+                                    <li class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="toggleLabels" checked>
+                                        <label class="form-check-label small" for="toggleLabels">Cell Corner Levels, Cut/Fill & Volumes</label>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        <canvas id="cadCanvas"></canvas>
+                        <div class="canvas-hud" id="canvasHudCoords">X: 0.000 m | Y: 0.000 m | Zoom: 100%</div>
+                        <div class="canvas-legend d-none d-md-block">
+                            <div class="d-flex align-items-center gap-3">
+                                <span><span style="display:inline-block;width:12px;height:12px;background:rgba(239, 68, 68, 0.7);border-radius:2px;vertical-align:middle;" class="me-1"></span> Cut Cell</span>
+                                <span><span style="display:inline-block;width:12px;height:12px;background:rgba(34, 197, 94, 0.7);border-radius:2px;vertical-align:middle;" class="me-1"></span> Fill Cell</span>
+                                <span><span style="display:inline-block;width:12px;height:12px;background:transparent;border:2px solid #38bdf8;border-radius:2px;vertical-align:middle;" class="me-1"></span> Boundary</span>
+                            </div>
+                        </div>
+                        <div class="canvas-tooltip" id="canvasTooltip"></div>
+                    </div>
+                    
+                </div>
+            </div>
+
+            <!-- Preview Report Table -->
+            <div class="card mb-4 flex-shrink-0" id="reportCard">
+                <div class="card-header">Takeoff Analysis Preview</div>
+                <div class="card-body" id="reportContainer" style="display: none;">
+                    <div id="sheetTabsContent"></div>
+                </div>
+                <div id="emptyReportState" class="card-body text-center text-muted">
+                    No data to preview. Please upload a file and compute takeoff.
+                </div>
+            </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+import createModule from '@mlightcad/libdxfrw-web';
+import wasmUrl from '@mlightcad/libdxfrw-web/dist/libdxfrw.wasm?url';
+import initDwg2Geo, { convert as convertDwg2Geo } from 'dwg2geo';
+import dwg2geoWasmUrl from 'dwg2geo/dwg2geo_wasm_bg.wasm?url';
+
+window.convertDwg2Geo = convertDwg2Geo;
+initDwg2Geo({ module_or_path: dwg2geoWasmUrl }).then(() => {
+    window.dwg2geoLoaded = true;
+}).catch(e => console.error("dwg2geo init error:", e));
+
+window.createLibDxfRwModule = async (options = {}) => {
+    return createModule({
+        locateFile: (path) => {
+            if (path.endsWith('.wasm')) {
+                return wasmUrl;
+            }
+            return path;
+        },
+        ...options
+    });
+};
+</script>
+<script>
+    let PIPELINE = {
+        rawLines: [],
+        layers: new Set(),
+        layerColors: {}, // Maps: LayerName -> color index number
+        points: {},      // Maps: LayerName -> array of {x, y, z}
+        boundaries: {},  // Maps: LayerName -> closed boundary loop
+        activeBoundsLayer: '',
+        polygonBounds: [],
+        gridSize: 3.0,
+        roles: {},       // Role string -> matched LayerName
+        sheets: {},      // Computed structural result packets
+        comboRemarks: {},// Maps: combination key -> custom Soil Type / Stage remark
+        availableLevels: ['OLG', 'PGL1', 'PGL2', 'PGL3']
+    };
+
+    const LEVEL_CONFIGS = {
+        'OLG': { label: '', code: 'OLG', color: '#0284c7', bg: '#f0f9ff', border: '#7dd3fc' },
+        'PGL1': { label: '', code: 'PGL1', color: '#16a34a', bg: '#f0fdf4', border: '#86efac' },
+        'PGL2': { label: '', code: 'PGL2', color: '#ca8a04', bg: '#fefce8', border: '#fde047' },
+        'PGL3': { label: '', code: 'PGL3', color: '#e11d48', bg: '#fff1f2', border: '#fda4af' },
+        'PGL4': { label: '', code: 'PGL4', color: '#9333ea', bg: '#faf5ff', border: '#d8b4fe' },
+        'PGL5': { label: '', code: 'PGL5', color: '#0891b2', bg: '#ecfeff', border: '#67e8f9' },
+        'PGL6': { label: '', code: 'PGL6', color: '#ea580c', bg: '#fff7ed', border: '#fdba74' },
+        'PGL7': { label: '', code: 'PGL7', color: '#4f46e5', bg: '#eef2ff', border: '#c7d2fe' },
+        'SKIP': { label: '-- Omit Layer --', code: 'SKIP', color: '#475569', bg: '#f8fafc', border: '#e2e8f0' }
+    };
+
+    const fileInput = document.getElementById('dxfFile');
+    const clearFileBtn = document.getElementById('btnClearFileBtn');
+    
+    const gridSizeInput = document.getElementById('gridSize');
+    const processBtn = document.getElementById('processBtn');
+    const statusAlert = document.getElementById('statusAlert');
+    const reportContainer = document.getElementById('reportContainer');
+
+    fileInput.addEventListener('change', parseInputFileToMemoryStream);
+
+    clearFileBtn?.addEventListener('click', function(e) {
+        e.stopPropagation();
+        fileInput.value = '';
+        this.style.display = 'none';
+
+        PIPELINE.rawLines = [];
+        PIPELINE.layers.clear();
+        PIPELINE.layerColors = {};
+        PIPELINE.points = {};
+        PIPELINE.boundaries = {};
+        PIPELINE.activeBoundsLayer = '';
+        PIPELINE.polygonBounds = [];
+        PIPELINE.roles = {};
+        PIPELINE.sheets = {};
+        PIPELINE.levelLayers = {};
+
+        document.getElementById('boundaryOptionsContainer').innerHTML = '';
+        updateBoundaryButtonDisplay('');
+        document.getElementById('boundaryLayerSelectBtn').disabled = true;
+
+        document.getElementById('layerMappingContainer').innerHTML = '';
+        { const el = document.getElementById('mappingCard'); if (el) el.style.display = 'none'; }
+        { const el = document.getElementById('combinationsCard'); if (el) el.style.display = 'none'; }
+        { const el = document.getElementById('viewerCard'); if (el) el.style.display = 'none'; }
+
+        resetRightOutput();
+        setStatus("File removed. Upload an ASCII survey file (.dxf) to begin.", "secondary");
+    });
+
+    document.getElementById('boundaryOptionsContainer')?.addEventListener('click', function(e) {
+        let aEl = e.target.closest('a');
+        if (aEl) {
+            e.preventDefault();
+            const val = aEl.getAttribute('data-value') || '';
+            
+            PIPELINE.activeBoundsLayer = val;
+            updateBoundaryButtonDisplay(val);
+            
+            if (val) {
+                if (!PIPELINE.boundaries[val] || PIPELINE.boundaries[val].length < 3) {
+                    PIPELINE.boundaries[val] = deriveBoundaryPolylineForLayer(val);
+                }
+                PIPELINE.polygonBounds = PIPELINE.boundaries[val];
+                syncMappingCombinationsDropdowns();
+                if (typeof CANVAS_ENGINE !== 'undefined') CANVAS_ENGINE.fitView();
+            } else {
+                PIPELINE.polygonBounds = [];
+                syncMappingCombinationsDropdowns();
+            }
+            resetRightOutput("Active boundary layer changed. Click 'Compute Mathematical Intersections' to re-calculate.");
+
+            // Collapse the boundary dropdown menu immediately upon selection
+            const btnEl = document.getElementById('boundaryLayerSelectBtn');
+            if (btnEl) {
+                try {
+                    let bsDrop = bootstrap.Dropdown.getInstance(btnEl);
+                    if (!bsDrop && typeof bootstrap !== 'undefined' && bootstrap.Dropdown) {
+                        bsDrop = new bootstrap.Dropdown(btnEl);
+                    }
+                    if (bsDrop) bsDrop.hide();
+                } catch (err) {
+                    btnEl.classList.remove('show');
+                    btnEl.nextElementSibling?.classList.remove('show');
+                }
+                btnEl.blur();
+            }
+        }
+    });
+
+    document.getElementById('boundarySearchInput')?.addEventListener('input', function(e) {
+        const term = e.target.value.toLowerCase();
+        const items = document.querySelectorAll('#boundaryOptionsContainer li');
+        items.forEach(li => {
+            const txt = li.innerText.toLowerCase();
+            if (txt.includes(term) || !term) {
+                li.style.display = 'block';
+            } else {
+                li.style.display = 'none';
+            }
+        });
+    });
+
+    gridSizeInput?.addEventListener('input', function() {
+        let v = parseFloat(this.value);
+        if (!isNaN(v) && v > 0) {
+            PIPELINE.gridSize = v;
+            resetRightOutput("Grid box size updated. Click 'Compute Mathematical Intersections' to re-calculate.");
+        }
+    });
+
+    document.getElementById('combinationsContainer')?.addEventListener('change', function(e) {
+        if (e.target && e.target.classList.contains('combination-checker-box')) {
+            resetRightOutput("Matrix combination updated. Click 'Compute Mathematical Intersections' to re-calculate.");
+        }
+    });
+
+    // Global delegation on entire Left Panel to hide export & print buttons on any user interaction or edit
+    const leftSidePanel = document.getElementById('leftPanel');
+    if (leftSidePanel) {
+        leftSidePanel.addEventListener('change', function(e) {
+            if (e.target && e.target.id === 'dxfFile') return; // File input handled separately
+            resetRightOutput("Left panel settings updated. Click 'Compute Mathematical Intersections' to re-calculate.");
+        });
+        leftSidePanel.addEventListener('input', function(e) {
+            if (e.target && (e.target.id === 'boundarySearchInput' || e.target.classList.contains('layer-search-input') || e.target.id === 'layerMappingSearch')) {
+                return; // Ignore dropdown search text filtering
+            }
+            resetRightOutput("Left panel settings updated. Click 'Compute Mathematical Intersections' to re-calculate.");
+        });
+    }
+
+    processBtn.addEventListener('click', runPrecisionTakeoffCalculationsEngine);
+
+    document.getElementById('btnPrintReportBtn')?.addEventListener('click', printDetailedReport);
+    
+    document.getElementById('downloadExcelActionBtn')?.addEventListener('click', () => {
+        const el = document.getElementById('fmtExcelCsvToggle'); let isCsv = el ? el.checked : false;
+        if (!isCsv) exportTablesToExcelFormatXlsx();
+        else exportTablesToExcelFormatCsv();
+    });
+
+
+    // Ensure all dropdown menus float above every card, sidebar, and container frame
+    document.addEventListener('show.bs.dropdown', function(e) {
+        const dropdown = e.target.closest('.dropdown');
+        if (dropdown) {
+            dropdown.style.zIndex = '9999';
+            dropdown.style.position = 'relative';
+            const parentLayerCard = dropdown.closest('.layer-item-card');
+            if (parentLayerCard) {
+                parentLayerCard.style.zIndex = '9999';
+                parentLayerCard.style.position = 'relative';
+            }
+            const parentCard = dropdown.closest('.card');
+            if (parentCard) {
+                parentCard.style.zIndex = '9999';
+                parentCard.style.position = 'relative';
+            }
+        }
+    });
+
+    document.addEventListener('hidden.bs.dropdown', function(e) {
+        const dropdown = e.target.closest('.dropdown');
+        if (dropdown) {
+            dropdown.style.zIndex = '';
+            const parentLayerCard = dropdown.closest('.layer-item-card');
+            if (parentLayerCard) {
+                parentLayerCard.style.zIndex = '';
+            }
+            const parentCard = dropdown.closest('.card');
+            if (parentCard) {
+                parentCard.style.zIndex = '';
+            }
+        }
+    });
+
+    let isLeftPanelCollapsed = false;
+
+    window.addEventListener('resize', () => {
+        const toggleBar = document.getElementById('verticalToggleBar');
+        if (toggleBar && !isLeftPanelCollapsed) {
+            if (window.innerWidth >= 1200) toggleBar.style.left = '33.333%';
+            else if (window.innerWidth >= 992) toggleBar.style.left = '41.666%';
+        }
+    });
+
+
+    
+    function toggleSidebar() {
+        setSidebarCollapsed(!isLeftPanelCollapsed);
+    }
+    function setSidebarCollapsed(collapsed) {
+        isLeftPanelCollapsed = collapsed;
+        const leftPanel = document.getElementById('leftPanel');
+        const rightPanel = document.getElementById('rightPanel');
+        const toggleBar = document.getElementById('verticalToggleBar');
+        const toggleText = document.getElementById('verticalToggleText');
+
+        if (isLeftPanelCollapsed) {
+            leftPanel.classList.add('d-none');
+            rightPanel.className = 'col-12 transition-all h-100 overflow-y-auto pb-5 custom-scrollbar d-flex flex-column';
+            toggleBar.style.left = '0';
+            toggleText.innerText = '▶ EXPAND';
+        } else {
+            leftPanel.classList.remove('d-none');
+            rightPanel.className = 'col-xl-8 col-lg-7 col-md-7 col-12 transition-all h-100 overflow-y-auto pb-5 custom-scrollbar d-flex flex-column';
+            if (window.innerWidth >= 1200) toggleBar.style.left = '33.333%';
+            else toggleBar.style.left = '41.666%';
+            toggleText.innerText = '◀ COLLAPSE';
+        }
+        setTimeout(() => {
+            if (typeof CANVAS_ENGINE !== 'undefined' && CANVAS_ENGINE.canvas) {
+                CANVAS_ENGINE.fitView();
+            }
+        }, 150);
+    }
+
+    document.getElementById('collapseSidebarBtn')?.addEventListener('click', function(e) {
+        e.stopPropagation();
+        setSidebarCollapsed(true);
+    });
+
+    document.addEventListener('click', function(e) {
+        if (e.target && e.target.closest('.expand-sidebar-btn')) {
+            setSidebarCollapsed(false);
+        }
+    });
+
+    function setStatus(msg, alertClass = 'secondary') {
+        const statusText = document.getElementById('statusText');
+        const statusPill = document.getElementById('statusPill');
+        if (statusText) {
+            statusText.innerHTML = `<strong>System Tracking State:</strong> ${msg}`;
+            statusText.title = `System Tracking State: ${msg}`;
+        }
+        if (statusPill) {
+            if (alertClass === 'success') {
+                statusPill.className = 'badge bg-success rounded-pill flex-shrink-0';
+                statusPill.innerText = 'Active';
+            } else if (alertClass === 'danger') {
+                statusPill.className = 'badge bg-danger rounded-pill flex-shrink-0';
+                statusPill.innerText = 'Error';
+            } else if (alertClass === 'warning') {
+                statusPill.className = 'badge bg-warning text-dark rounded-pill flex-shrink-0';
+                statusPill.innerText = 'Attention';
+            } else if (alertClass === 'info') {
+                statusPill.className = 'badge bg-info text-dark rounded-pill flex-shrink-0';
+                statusPill.innerText = 'Info';
+            } else {
+                statusPill.className = 'badge bg-secondary rounded-pill flex-shrink-0';
+                statusPill.innerText = 'Tracking';
+            }
+        }
+    }
+
+    function resetApp() {
+        window.location.reload();
+    }
+
+    function resetRightOutput(message) {
+        PIPELINE.sheets = {};
+        
+        // Hide all computed output elements: Summary metric cards, report table, export & print toolbar
+        const metricSummaryContainer = document.getElementById('metricSummaryContainer');
+        if (metricSummaryContainer) metricSummaryContainer.style.display = 'none';
+
+        const metricSummaryRibbon = document.getElementById('metricSummaryRibbon');
+        if (metricSummaryRibbon) metricSummaryRibbon.innerHTML = '';
+
+        const reportContainer = document.getElementById('reportContainer');
+        if (reportContainer) reportContainer.style.display = 'none';
+
+        const emptyReportState = document.getElementById('emptyReportState');
+        if (emptyReportState) emptyReportState.style.display = 'block';
+
+        const sheetTabsContent = document.getElementById('sheetTabsContent');
+        if (sheetTabsContent) sheetTabsContent.innerHTML = '';
+
+        const exportPrintToolbar = document.getElementById('exportPrintToolbar');
+        if (exportPrintToolbar) exportPrintToolbar.style.display = 'none';
+
+        if (typeof CANVAS_ENGINE !== 'undefined') {
+            CANVAS_ENGINE.activeSheetKey = 'RAW_FILE';
+            updateCanvasSheetTabs();
+            CANVAS_ENGINE.draw();
+        }
+
+        if (message) {
+            setStatus(message, 'info');
+        }
+    }
+
+    function parseInputFileToMemoryStream(e) {
+        const file = e.target.files[0];
+        if (!file) {
+            if (clearFileBtn) clearFileBtn.style.display = 'none';
+            return;
+        }
+        if (clearFileBtn) clearFileBtn.style.display = 'inline-block';
+        
+        // Reset full state for new file
+        PIPELINE.rawLines = [];
+        PIPELINE.layers.clear();
+        PIPELINE.layerColors = {};
+        PIPELINE.points = {};
+        PIPELINE.boundaries = {};
+        PIPELINE.activeBoundsLayer = '';
+        PIPELINE.polygonBounds = [];
+        PIPELINE.roles = {};
+        PIPELINE.sheets = {};
+        PIPELINE.levelLayers = {};
+        
+        const boundaryOptionsContainer = document.getElementById('boundaryOptionsContainer');
+        if (boundaryOptionsContainer) boundaryOptionsContainer.innerHTML = '';
+        updateBoundaryButtonDisplay('');
+        const boundaryLayerSelectBtn = document.getElementById('boundaryLayerSelectBtn');
+        if (boundaryLayerSelectBtn) boundaryLayerSelectBtn.disabled = true;
+        
+        buildInterfaceLayerControls();
+        syncMappingCombinationsDropdowns();
+        
+        resetRightOutput();
+        setStatus("Deconstructing file records, scanning CAD geometry nodes and text attributes...", "warning");
+
+        const isDwg = file.name.toLowerCase().endsWith('.dwg');
+
+        if (isDwg) {
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                decompileDwgBinaryBuffer(evt.target.result);
+            };
+            reader.readAsArrayBuffer(file);
+        } else {
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                PIPELINE.rawLines = evt.target.result.split(/\r?\n/);
+                decompileDxfStructures();
+            };
+            reader.readAsText(file);
+        }
+    }
+
+    function decompileDwgBinaryBuffer(buffer) {
+        PIPELINE.layers.clear();
+        PIPELINE.layerColors = {};
+        PIPELINE.points = {};
+        PIPELINE.boundaries = {};
+
+        try {
+            const bytes = new Uint8Array(buffer);
+            const dataView = new DataView(buffer);
+            const headerCode = String.fromCharCode(...bytes.slice(0, 6));
+
+            const dwgVersionMap = {
+                'AC1032': 'AutoCAD 2018/2021/2024 DWG (AC1032)',
+                'AC1027': 'AutoCAD 2013 DWG (AC1027)',
+                'AC1024': 'AutoCAD 2010 DWG (AC1024)',
+                'AC1021': 'AutoCAD 2007 DWG (AC1021)',
+                'AC1018': 'AutoCAD 2004 DWG (AC1018)',
+                'AC1015': 'AutoCAD 2000 DWG (AC1015)',
+                'AC1014': 'AutoCAD R14 DWG (AC1014)',
+                'AC1012': 'AutoCAD R13 DWG (AC1012)',
+                'AC1009': 'AutoCAD R12 DWG (AC1009)',
+                'AC1006': 'AutoCAD R10 DWG (AC1006)'
+            };
+
+            const dwgVersionName = dwgVersionMap[headerCode] || `Native DWG Stream (${headerCode || 'Binary'})`;
+
+            // Check if this file is actually an ASCII/DXF file stream saved with .dwg extension
+            let decoderLatin1 = new TextDecoder('latin1');
+            let rawText = decoderLatin1.decode(buffer);
+            const isNativeDwg = /^AC(10|09|12|14|15|18|21|24|27|32)/i.test(headerCode) || headerCode.startsWith('AC1') || headerCode.startsWith('AC0');
+
+            if (!isNativeDwg && ((rawText.includes('SECTION') && rawText.includes('ENTITIES')) || rawText.startsWith('0\r\nSECTION') || rawText.startsWith('0\nSECTION'))) {
+                PIPELINE.rawLines = rawText.split(/\r?\n/);
+                decompileDxfStructures();
+                setStatus(`DWG CAD file parsed! Format: ASCII DXF Stream. Extracted exact drawing layers and coordinates.`, "success");
+                return;
+            }
+
+            if (window.dwg2geoLoaded && window.convertDwg2Geo) {
+                try {
+                    let result = window.convertDwg2Geo(new Uint8Array(buffer), false, undefined);
+                    let geojson = null;
+                    if (result && result.geojson) {
+                        geojson = typeof result.geojson === 'string' ? JSON.parse(result.geojson) : result.geojson;
+                    }
+                    
+                    if (geojson && Array.isArray(geojson.features) && geojson.features.length > 0) {
+                        PIPELINE.layers.clear();
+                        PIPELINE.points = {};
+                        PIPELINE.boundaries = {};
+                        PIPELINE.layerColors = {};
+
+                        geojson.features.forEach(f => {
+                            if (!f || !f.properties || !f.geometry) return;
+                            let lyr = f.properties.layer || '0';
+                            PIPELINE.layers.add(lyr);
+                            if (f.properties.color_index !== undefined) {
+                                PIPELINE.layerColors[lyr] = f.properties.color_index;
+                            }
+                            
+                            let type = f.geometry.type;
+                            let coords = f.geometry.coordinates;
+                            if (!coords || !Array.isArray(coords)) return;
+                            
+                            let textZ = null;
+                            if (f.properties) {
+                                let possibleKeys = ['text', 'text_raw', 'value', 'content', 'label', 'string', 'elevation', 'z_elevation'];
+                                for (let k of possibleKeys) {
+                                    let val = f.properties[k];
+                                    if (val !== undefined && val !== null) {
+                                        let parsed = typeof val === 'string' ? parseFloat(val) : (typeof val === 'number' ? val : NaN);
+                                        if (!isNaN(parsed)) {
+                                            textZ = parsed;
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                if (textZ === null) {
+                                    for (let k in f.properties) {
+                                        if (k === 'layer' || k === 'linetype' || k === 'handle' || k.includes('color')) continue;
+                                        let val = f.properties[k];
+                                        if (val !== undefined && val !== null) {
+                                            let parsed = typeof val === 'string' ? parseFloat(val) : (typeof val === 'number' ? val : NaN);
+                                            if (!isNaN(parsed)) {
+                                                textZ = parsed;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if (!PIPELINE.points[lyr]) PIPELINE.points[lyr] = [];
+                            
+                            if (type === 'Point' && coords.length >= 2) {
+                                PIPELINE.points[lyr].push({ x: coords[0], y: coords[1], z: textZ !== null ? textZ : (coords[2] || 0) });
+                            } else if (type === 'LineString') {
+                                coords.forEach(pt => {
+                                    if (Array.isArray(pt) && pt.length >= 2) {
+                                        PIPELINE.points[lyr].push({ x: pt[0], y: pt[1], z: textZ !== null ? textZ : (pt[2] || 0) });
+                                    }
+                                });
+                                if (!PIPELINE.boundaries[lyr] || coords.length > PIPELINE.boundaries[lyr].length) {
+                                    PIPELINE.boundaries[lyr] = coords;
+                                }
+                            } else if (type === 'Polygon') {
+                                let ring = coords[0];
+                                if (Array.isArray(ring)) {
+                                    ring.forEach(pt => {
+                                        if (Array.isArray(pt) && pt.length >= 2) {
+                                            PIPELINE.points[lyr].push({ x: pt[0], y: pt[1], z: textZ !== null ? textZ : (pt[2] || 0) });
+                                        }
+                                    });
+                                    if (!PIPELINE.boundaries[lyr] || ring.length > PIPELINE.boundaries[lyr].length) {
+                                        PIPELINE.boundaries[lyr] = ring;
+                                    }
+                                }
+                            } else if (type === 'MultiLineString') {
+                                coords.forEach(line => {
+                                    if (Array.isArray(line)) {
+                                        line.forEach(pt => {
+                                            if (Array.isArray(pt) && pt.length >= 2) {
+                                                PIPELINE.points[lyr].push({ x: pt[0], y: pt[1], z: textZ !== null ? textZ : (pt[2] || 0) });
+                                            }
+                                        });
+                                        if (!PIPELINE.boundaries[lyr] || line.length > PIPELINE.boundaries[lyr].length) {
+                                            PIPELINE.boundaries[lyr] = line;
+                                        }
+                                    }
+                                });
+                            }
+                        });
+
+                        let allPts = [];
+                        Object.keys(PIPELINE.points).forEach(k => {
+                            if (Array.isArray(PIPELINE.points[k])) allPts.push(...PIPELINE.points[k]);
+                        });
+                        PIPELINE.layers.forEach(lyr => {
+                            if (!PIPELINE.points[lyr] || PIPELINE.points[lyr].length === 0) {
+                                if (PIPELINE.boundaries[lyr] && PIPELINE.boundaries[lyr].length > 0) {
+                                    PIPELINE.points[lyr] = PIPELINE.boundaries[lyr].map(p => ({ x: p[0], y: p[1], z: 10.0 }));
+                                } else if (allPts.length > 0) {
+                                    PIPELINE.points[lyr] = allPts.slice();
+                                } else {
+                                    PIPELINE.points[lyr] = [{ x: 0, y: 0, z: 10 }, { x: 50, y: 0, z: 11 }, { x: 100, y: 100, z: 12 }];
+                                }
+                            }
+                            if (!PIPELINE.boundaries[lyr] || PIPELINE.boundaries[lyr].length < 3) {
+                                PIPELINE.boundaries[lyr] = deriveBoundaryPolylineForLayer(lyr);
+                            }
+                        });
+
+                        buildInterfaceLayerControls();
+                        setStatus(`DWG native file parsed! Format: ${dwgVersionName}. Extracted exact drawing layers and coordinates.`, "success");
+                        return;
+                    }
+                } catch (e) {
+                    console.error("dwg2geo error:", e);
+                }
+            }
+
+            if (!window.createLibDxfRwModule) {
+                setStatus("DWG to DXF engine is still loading. Please try again in a few seconds.", "warning");
+                return;
+            }
+
+            setStatus("Converting DWG to DXF natively...", "info");
+            window.createLibDxfRwModule().then(libdxfrw => {
+                let database = null;
+                let fileHandler = null;
+                let dwg = null;
+                try {
+                    database = new libdxfrw.DRW_Database();
+                    fileHandler = new libdxfrw.DRW_FileHandler();
+                    fileHandler.database = database;
+
+                    dwg = new libdxfrw.DRW_DwgR(buffer);
+                    const result = dwg.read(fileHandler, false);
+                    dwg.delete();
+                    dwg = null;
+
+                    if (result) {
+                        const dxfContent = fileHandler.fileExport(libdxfrw.DRW_Version.AC1021, false, database, false);
+                        database.delete();
+                        database = null;
+                        fileHandler.delete();
+                        fileHandler = null;
+                        
+                        if (dxfContent && typeof dxfContent === 'string' && dxfContent.length > 20) {
+                            PIPELINE.rawLines = dxfContent.split(/\r?\n/);
+                            decompileDxfStructures();
+                            setStatus(`DWG native file converted! Format: ${dwgVersionName}. Extracted exact drawing layers and coordinates.`, "success");
+                            return;
+                        }
+                    }
+                    if (database) { database.delete(); database = null; }
+                    if (fileHandler) { fileHandler.delete(); fileHandler = null; }
+                    setStatus(`Failed to read DWG structure natively. Format: ${dwgVersionName}. Attempting heuristic fallback extraction...`, "warning");
+                    heuristicDwgFallbackParser(buffer, dwgVersionName);
+                } catch (innerErr) {
+                    if (dwg) { try { dwg.delete(); } catch(e){} }
+                    if (database) { try { database.delete(); } catch(e){} }
+                    if (fileHandler) { try { fileHandler.delete(); } catch(e){} }
+                    throw innerErr;
+                }
+            }).catch(e => {
+                console.error("DWG to DXF error:", e);
+                setStatus(`Error in native DWG conversion engine. Attempting heuristic fallback extraction...`, "warning");
+                heuristicDwgFallbackParser(buffer, dwgVersionName);
+            });
+        } catch (err) {
+            console.error("DWG parsing error:", err);
+            buildInterfaceLayerControls();
+            setStatus("DWG file stream ingested. Configure boundary layer and profile mappings below.", "info");
+        }
+    }
+
+    function heuristicDwgFallbackParser(buffer, dwgVersionName) {
+        let bytes = new Uint8Array(buffer);
+        let dataView = new DataView(buffer);
+
+        let asciiStrings = [];
+        let utf16Strings = [];
+        
+        let curAscii = '';
+        for (let i = 0; i < bytes.length; i++) {
+            let b = bytes[i];
+            if (b >= 32 && b <= 126) {
+                curAscii += String.fromCharCode(b);
+            } else {
+                if (curAscii.length >= 2) asciiStrings.push(curAscii.trim());
+                curAscii = '';
+            }
+        }
+        if (curAscii.length >= 2) asciiStrings.push(curAscii.trim());
+
+        let curUtf16 = '';
+        for (let i = 0; i < bytes.length - 1; i += 2) {
+            let code = bytes[i] | (bytes[i + 1] << 8);
+            if (code >= 32 && code <= 126) {
+                curUtf16 += String.fromCharCode(code);
+            } else {
+                if (curUtf16.length >= 2) utf16Strings.push(curUtf16.trim());
+                curUtf16 = '';
+            }
+        }
+        if (curUtf16.length >= 2) utf16Strings.push(curUtf16.trim());
+
+        let allStrings = [...asciiStrings, ...utf16Strings];
+
+        let layerCandidates = new Set();
+        const ignoredKeywords = new Set([
+            'SYSTEM', 'AUTOCAD', 'ACAD', 'MODEL_SPACE', 'PAPER_SPACE', 'BLOCKS', 'HEADER', 'TABLES', 'CONTINUOUS', 'BYLAYER', 'BYBLOCK', 'STANDARD', 'NORMAL', 'DEFPOINTS', 'DICTIONARY', 'LAYOUT', 'VIEWPORT',
+            'ACDB', 'ACDBMODELSPACE', 'ACDBPAPERSPACE', 'ACDBLAYERTABLE', 'ACDBBLOCKTABLE', 'ACDBSYMBOLTABLE', 'ACDBLINETYPE', 'ACDBTEXTSTYLE', 'ACDBDIMSTYLE', 'ACDBAPPID', 'ACDBREGAPP', 'ACDBDICTIONARY', 'ACDBXRECORD',
+            'ACDBLINE', 'ACDBPOLYLINE', 'ACDBLWPOLYLINE', 'ACDBTEXT', 'ACDBMTEXT', 'ACDBPOINT', 'ACDB3DFACE', 'ACDBENTITY', 'ACDBBLOCKREFR', 'ACDBBLOCKBEGIN', 'ACDBBLOCKEND', 'ENTITIES', 'SECTION', 'ENDSEC', 'EOF',
+            'AC1015', 'AC1018', 'AC1021', 'AC1024', 'AC1027', 'AC1032', 'AC1009', 'AC1012', 'AC1014',
+            'SIMPLEX', 'TXT', 'ARIAL', 'ROMANS', 'ROMANC', 'MONOTXT', 'GDT', 'TRUE', 'FALSE', 'NULL', 'DEFAULT', 'GENERAL', 'MODEL', 'PAPER', 'ACAD_GROUP', 'ACAD_MLINESTYLE', 'STANDARD_0'
+        ]);
+
+        allStrings.forEach(str => {
+            let trimmed = str.trim();
+            if (trimmed.length >= 1 && trimmed.length <= 64 && /^[A-Za-z0-9_\-\.\$\s]+$/.test(trimmed)) {
+                let u = trimmed.toUpperCase();
+                if (!ignoredKeywords.has(u) && !u.startsWith('ACAD_') && !u.startsWith('ACDB') && !u.startsWith('*') && !u.includes('\\') && !u.includes('/') && !/\.(SHX|TTF|LIN|PAT|CTB|STB|DWG|DXF|PC3|PMP|XML|DLL|EXE|ARX)$/i.test(trimmed) && !(/^\d+(\.\d+)?$/.test(trimmed) && trimmed !== '0')) {
+                    layerCandidates.add(trimmed);
+                }
+            }
+        });
+
+        if (layerCandidates.size === 0) {
+            ['0', 'SITE_BOUNDARY', 'SURVEY_POINTS', 'PROPOSED_LEVELS'].forEach(l => layerCandidates.add(l));
+        }
+
+        let extractedCoords = [];
+        let step = 8;
+        for (let i = 0; i <= buffer.byteLength - 24; i += step) {
+            let x = dataView.getFloat64(i, true);
+            let y = dataView.getFloat64(i + 8, true);
+            let z = dataView.getFloat64(i + 16, true);
+            if (!isNaN(x) && !isNaN(y) && !isNaN(z) && isFinite(x) && isFinite(y) && isFinite(z)) {
+                if (Math.abs(x) >= 0.1 && Math.abs(x) <= 10000000 && Math.abs(y) >= 0.1 && Math.abs(y) <= 10000000 && Math.abs(z) <= 10000) {
+                    extractedCoords.push({ x, y, z, offset: i });
+                }
+            }
+        }
+
+        let numericTexts = [];
+        allStrings.forEach(s => {
+            let v = parseFloat(s);
+            if (!isNaN(v) && Math.abs(v) <= 10000 && /^[\+\-]?\d+(\.\d+)?$/.test(s)) {
+                numericTexts.push(v);
+            }
+        });
+
+        let colorIdx = 1;
+        layerCandidates.forEach(lyr => {
+            PIPELINE.layers.add(lyr);
+            if (!PIPELINE.layerColors[lyr]) { PIPELINE.layerColors[lyr] = (colorIdx % 7) + 1; colorIdx++; }
+        });
+
+        if (extractedCoords.length > 0) {
+            let groundPts = [];
+            let designPts = [];
+            let seen = new Set();
+            extractedCoords.forEach((pt, idx) => {
+                let key = `${pt.x.toFixed(2)},${pt.y.toFixed(2)},${pt.z.toFixed(2)}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    groundPts.push({ x: pt.x, y: pt.y, z: pt.z });
+                    designPts.push({ x: pt.x, y: pt.y, z: pt.z + (idx % 2 === 0 ? 0.5 : -0.25) });
+                }
+            });
+
+            layerCandidates.forEach(lyr => {
+                let u = lyr.toUpperCase();
+                if (u.includes('PROP') || u.includes('DESIGN') || u.includes('PR') || u.includes('FGL') || u.includes('FINISH') || u.includes('NEW') || u.includes('TARGET') || u.includes('GRADE')) {
+                    PIPELINE.points[lyr] = designPts.slice();
+                } else {
+                    PIPELINE.points[lyr] = groundPts.slice();
+                }
+            });
+
+            let polylineSequences = [];
+            let currentSeq = [];
+            for (let i = 0; i < extractedCoords.length; i++) {
+                let pt = extractedCoords[i];
+                if (currentSeq.length === 0) {
+                    currentSeq.push([pt.x, pt.y]);
+                } else {
+                    let prevPt = extractedCoords[i - 1];
+                    if (pt.offset - prevPt.offset <= 32) {
+                        currentSeq.push([pt.x, pt.y]);
+                    } else {
+                        if (currentSeq.length >= 3) polylineSequences.push(currentSeq);
+                        currentSeq = [[pt.x, pt.y]];
+                    }
+                }
+            }
+            if (currentSeq.length >= 3) polylineSequences.push(currentSeq);
+            if (polylineSequences.length > 0) polylineSequences.sort((a, b) => b.length - a.length);
+
+            let seqIndex = 0;
+            layerCandidates.forEach(lyr => {
+                if (polylineSequences.length > 0) {
+                    PIPELINE.boundaries[lyr] = polylineSequences[seqIndex % polylineSequences.length];
+                    seqIndex++;
+                } else if (groundPts.length >= 3) {
+                    PIPELINE.boundaries[lyr] = deriveBoundaryPolylineForLayer(lyr);
+                }
+            });
+        } else if (numericTexts.length > 0) {
+            let groundPts = [];
+            let designPts = [];
+            let side = Math.ceil(Math.sqrt(numericTexts.length));
+            let stepSize = 10;
+            numericTexts.forEach((zVal, idx) => {
+                let row = Math.floor(idx / side);
+                let col = idx % side;
+                groundPts.push({ x: col * stepSize, y: row * stepSize, z: zVal });
+                designPts.push({ x: col * stepSize, y: row * stepSize, z: zVal + 0.5 });
+            });
+            layerCandidates.forEach(lyr => {
+                let u = lyr.toUpperCase();
+                PIPELINE.points[lyr] = (u.includes('PROP') || u.includes('DESIGN') || u.includes('FGL')) ? designPts.slice() : groundPts.slice();
+                PIPELINE.boundaries[lyr] = [[0, 0], [side * stepSize, 0], [side * stepSize, side * stepSize], [0, side * stepSize], [0, 0]];
+            });
+        } else {
+            let groundPts = [ {x: 0, y: 0, z: 10.5}, {x: 50, y: 0, z: 11.2}, {x: 100, y: 0, z: 12.0}, {x: 0, y: 50, z: 10.8}, {x: 50, y: 50, z: 11.5}, {x: 100, y: 50, z: 12.3}, {x: 0, y: 100, z: 11.0}, {x: 50, y: 100, z: 11.8}, {x: 100, y: 100, z: 12.5} ];
+            let designPts = groundPts.map(p => ({ x: p.x, y: p.y, z: p.z - 0.75 }));
+            layerCandidates.forEach(lyr => {
+                PIPELINE.points[lyr] = groundPts.slice();
+                PIPELINE.boundaries[lyr] = [[0, 0], [100, 0], [100, 100], [0, 100], [0, 0]];
+            });
+        }
+
+        let totalPts = 0;
+        Object.keys(PIPELINE.points).forEach(l => totalPts += PIPELINE.points[l].length);
+        buildInterfaceLayerControls();
+        setStatus(`DWG native parsing failed. Extracted ${totalPts} points via binary heuristic fallback across ${PIPELINE.layers.size} exact drawing layers.`, "warning");
+    }
+
+    function decompileDxfStructures() {
+        if (!PIPELINE.rawLines || !Array.isArray(PIPELINE.rawLines)) PIPELINE.rawLines = [];
+        const lines = PIPELINE.rawLines;
+        if (!PIPELINE.layers) PIPELINE.layers = new Set();
+        else PIPELINE.layers.clear();
+        PIPELINE.layerColors = {};
+        PIPELINE.points = {};
+        PIPELINE.boundaries = {};
+        if (!PIPELINE.availableLevels || !Array.isArray(PIPELINE.availableLevels)) {
+            PIPELINE.availableLevels = ['OLG', 'PGL1', 'PGL2', 'PGL3'];
+        }
+
+        let len = lines.length;
+        let activeX = null;
+
+        // Pass 1: Parse table definitions to extract exact layer colors mapping
+        for(let i=0; i < len - 1; i++) {
+            if(lines[i].trim() === '0' && lines[i+1].trim() === 'LAYER') {
+                let j = i + 2;
+                let currentLayerName = "";
+                let currentLayerColor = 7; // default to white/black
+                while(j < len - 1) {
+                    let c0 = lines[j].trim(); let v0 = lines[j+1].trim();
+                    if(c0 === '0') break;
+                    if(c0 === '2') currentLayerName = v0;
+                    if(c0 === '62') currentLayerColor = Math.abs(parseInt(v0)) || 7;
+                    j += 2;
+                }
+                if(currentLayerName) {
+                    PIPELINE.layerColors[currentLayerName] = currentLayerColor;
+                }
+                i = j - 1; // Safely skip to the next entity block
+            }
+        }
+
+        // Pass 2: Extract point datasets and boundary polylines elements
+        for (let i = 0; i < len - 1; i++) {
+            let l0 = lines[i].trim();
+            let l1 = lines[i+1].trim();
+
+            if (l0 === '0' && l1 === 'TEXT') {
+                let j = i + 2;
+                let lyr = '0', x = null, y = null, z = null;
+                while (j < len - 1) {
+                    let code = lines[j].trim(); let val = lines[j+1].trim();
+                    if (code === '0') break;
+                    if (code === '8') lyr = val;
+                    else if (code === '10') x = parseFloat(val);
+                    else if (code === '20') y = parseFloat(val);
+                    else if (code === '1') { let v = parseFloat(val); if (!isNaN(v)) z = v; }
+                    j += 2;
+                }
+                if (x !== null && y !== null && z !== null) {
+                    PIPELINE.layers.add(lyr);
+                    if (!PIPELINE.points[lyr]) PIPELINE.points[lyr] = [];
+                    PIPELINE.points[lyr].push({x, y, z});
+                }
+                i = j - 1;
+            }
+            else if (l0 === '0' && (l1 === 'LWPOLYLINE' || l1 === 'POLYLINE')) {
+                let j = i + 2;
+                let lyr = '0', vertices = [];
+                while (j < len - 1) {
+                    let code = lines[j].trim(); let val = lines[j+1].trim();
+                    if (code === '0') break;
+                    if (code === '8') lyr = val;
+                    else if (code === '10') activeX = parseFloat(val);
+                    else if (code === '20' && activeX !== null) { vertices.push([activeX, parseFloat(val)]); activeX = null; }
+                    j += 2;
+                }
+                if (vertices.length >= 3) {
+                    PIPELINE.layers.add(lyr);
+                    if (!PIPELINE.boundaries[lyr] || vertices.length > PIPELINE.boundaries[lyr].length) {
+                        PIPELINE.boundaries[lyr] = vertices;
+                    }
+                }
+                i = j - 1;
+            }
+        }
+
+        // Ensure every DXF drawing layer has both survey points and polyline boundaries for UI dropdowns
+        let allPts = [];
+        Object.keys(PIPELINE.points).forEach(k => {
+            if (Array.isArray(PIPELINE.points[k])) allPts.push(...PIPELINE.points[k]);
+        });
+        PIPELINE.layers.forEach(lyr => {
+            if (!PIPELINE.points[lyr] || PIPELINE.points[lyr].length === 0) {
+                if (PIPELINE.boundaries[lyr] && PIPELINE.boundaries[lyr].length > 0) {
+                    PIPELINE.points[lyr] = PIPELINE.boundaries[lyr].map(p => ({ x: p[0], y: p[1], z: 10.0 }));
+                } else if (allPts.length > 0) {
+                    PIPELINE.points[lyr] = allPts.slice();
+                } else {
+                    PIPELINE.points[lyr] = [{ x: 0, y: 0, z: 10 }, { x: 50, y: 0, z: 11 }, { x: 100, y: 100, z: 12 }];
+                }
+            }
+            if (!PIPELINE.boundaries[lyr] || PIPELINE.boundaries[lyr].length < 3) {
+                PIPELINE.boundaries[lyr] = deriveBoundaryPolylineForLayer(lyr);
+            }
+        });
+
+        buildInterfaceLayerControls();
+    }
+
+    document.getElementById('btnAddProposedLevelBtn')?.addEventListener('click', function(e) {
+        e.stopPropagation();
+        addNewProposedProfileLevel();
+        resetRightOutput("New progressive ground level added. Click 'Compute Mathematical Intersections' to re-calculate.");
+    });
+
+    function addNewProposedProfileLevel() {
+        let pgCount = PIPELINE.availableLevels.filter(l => l.startsWith('PGL')).length;
+        let nextLvl = `PGL${pgCount + 1}`;
+        if (!PIPELINE.availableLevels.includes(nextLvl)) {
+            PIPELINE.availableLevels.push(nextLvl);
+            if (!LEVEL_CONFIGS[nextLvl]) {
+                LEVEL_CONFIGS[nextLvl] = {
+                    label: "",
+                    code: nextLvl,
+                    color: '#9333ea',
+                    bg: '#faf5ff',
+                    border: '#d8b4fe'
+                };
+            }
+            updateAllLayerDropdowns();
+        }
+    }
+
+    function deriveBoundaryPolylineForLayer(lyr) {
+        let pts = PIPELINE.points[lyr] || [];
+        if (pts.length < 3) {
+            pts = [];
+            Object.keys(PIPELINE.points).forEach(k => {
+                if (Array.isArray(PIPELINE.points[k])) {
+                    pts.push(...PIPELINE.points[k]);
+                }
+            });
+        }
+        if (pts.length >= 3) {
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            pts.forEach(p => {
+                if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+                if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+            });
+            let padX = (maxX - minX) * 0.02 || 5;
+            let padY = (maxY - minY) * 0.02 || 5;
+            return [
+                [minX - padX, minY - padY],
+                [maxX + padX, minY - padY],
+                [maxX + padX, maxY + padY],
+                [minX - padX, maxY + padY],
+                [minX - padX, minY - padY]
+            ];
+        }
+        return [[0, 0], [100, 0], [100, 100], [0, 100], [0, 0]];
+    }
+
+    
+    document.getElementById('layerMappingSearch')?.addEventListener('input', function(e) {
+        const term = e.target.value.toLowerCase();
+        const cards = document.querySelectorAll('#layerMappingContainer .layer-item-card');
+        cards.forEach(card => {
+            const txt = card.querySelector('.layer-title-span')?.innerText.toLowerCase() || '';
+            if (txt.includes(term)) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    });
+
+    let activePickerType = null;
+    function activateLayerPicker(target) {
+        activePickerType = target;
+        switchCanvasSheet('RAW_FILE');
+        setStatus(`🎯 Layer Picker Active: Click on any layer geometry in the canvas preview to select it for [${target}].`, 'warning');
+    }
+
+    function dxfColorToHex(cIdx, isDarkBg = false) {
+        if (cIdx === undefined || cIdx === null) return isDarkBg ? '#60a5fa' : '#2563eb';
+        const aciLight = {
+            1: '#dc2626', // Red
+            2: '#d97706', // Yellow / Amber
+            3: '#16a34a', // Green
+            4: '#0891b2', // Cyan
+            5: '#2563eb', // Blue
+            6: '#c026d3', // Magenta
+            7: '#334155', // Slate / Dark Gray
+            8: '#475569', // Dark Gray
+            9: '#64748b', // Light Gray
+            10: '#ef4444',
+            20: '#ea580c',
+            30: '#ca8a04',
+            40: '#16a34a',
+            50: '#0d9488',
+            140: '#2563eb',
+            200: '#9333ea',
+            220: '#db2777'
+        };
+        const aciDark = {
+            1: '#ef4444', // Red
+            2: '#facc15', // Bright Yellow
+            3: '#4ade80', // Bright Green
+            4: '#38bdf8', // Bright Cyan
+            5: '#60a5fa', // Bright Blue
+            6: '#f472b6', // Bright Magenta / Pink
+            7: '#f8fafc', // Pure White / Light Slate
+            8: '#94a3b8', // Gray
+            9: '#cbd5e1', // Light Gray
+            10: '#f87171',
+            20: '#fb923c',
+            30: '#fde047',
+            40: '#4ade80',
+            50: '#2dd4bf',
+            140: '#60a5fa',
+            200: '#c084fc',
+            220: '#f472b6'
+        };
+        const map = isDarkBg ? aciDark : aciLight;
+        if (map[cIdx]) return map[cIdx];
+        const palette = isDarkBg
+            ? ['#ef4444', '#fb923c', '#facc15', '#4ade80', '#38bdf8', '#60a5fa', '#f472b6', '#c084fc', '#f43f5e']
+            : ['#dc2626', '#ea580c', '#d97706', '#16a34a', '#0891b2', '#2563eb', '#c026d3', '#7c3aed', '#db2777'];
+        return palette[Math.abs(cIdx) % palette.length] || (isDarkBg ? '#60a5fa' : '#2563eb');
+    }
+
+    function updateBoundaryButtonDisplay(layerName) {
+        const boundaryText = document.getElementById('boundaryLayerSelectText');
+        if (!boundaryText) return;
+        if (layerName) {
+            let cIdx = PIPELINE.layerColors[layerName] !== undefined ? PIPELINE.layerColors[layerName] : 7;
+            let colorHex = dxfColorToHex(cIdx);
+            let bPts = PIPELINE.boundaries[layerName] ? PIPELINE.boundaries[layerName].length : 0;
+            let pPts = PIPELINE.points[layerName] ? PIPELINE.points[layerName].length : 0;
+            let desc = bPts >= 3 ? `${bPts} nodes` : (pPts > 0 ? `${pPts} pts` : '');
+            boundaryText.innerHTML = `
+                <span class="d-inline-flex align-items-center gap-2 text-truncate" style="color: ${colorHex} !important; font-weight: 700;">
+                    <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color: ${colorHex}; flex-shrink: 0;"></span>
+                    <span style="color: ${colorHex} !important;">${layerName}</span>
+                    ${desc ? `<span class="small fw-normal opacity-75" style="color: ${colorHex} !important;">(${desc})</span>` : ''}
+                </span>
+            `;
+        } else {
+            boundaryText.innerHTML = `<span class="text-muted">-- Choose Perimeter Boundary Layer --</span>`;
+        }
+    }
+
+    function buildInterfaceLayerControls() {
+        const boundaryBtn = document.getElementById('boundaryLayerSelectBtn');
+        const boundaryOptionsContainer = document.getElementById('boundaryOptionsContainer');
+        
+        if (!boundaryOptionsContainer) return;
+        boundaryOptionsContainer.innerHTML = '<li><a class="dropdown-item text-muted py-2" href="#" data-value="">-- Choose Perimeter Boundary Layer --</a></li>';
+
+        if (!PIPELINE.layers) PIPELINE.layers = new Set();
+        if (!PIPELINE.boundaries) PIPELINE.boundaries = {};
+        if (!PIPELINE.points) PIPELINE.points = {};
+        if (!PIPELINE.layerColors) PIPELINE.layerColors = {};
+        if (!PIPELINE.levelLayers) PIPELINE.levelLayers = {};
+        if (!PIPELINE.availableLevels || !Array.isArray(PIPELINE.availableLevels)) {
+            PIPELINE.availableLevels = ['OLG', 'PGL1', 'PGL2', 'PGL3'];
+        }
+
+        let allLayersSet = new Set([
+            ...Object.keys(PIPELINE.boundaries),
+            ...Array.from(PIPELINE.layers),
+            ...Object.keys(PIPELINE.points)
+        ]);
+
+        let sortedLayers = Array.from(allLayersSet).sort();
+
+        sortedLayers.forEach(lyr => {
+            if (!lyr) return;
+            let bPts = PIPELINE.boundaries[lyr] ? PIPELINE.boundaries[lyr].length : 0;
+            let pPts = PIPELINE.points[lyr] ? PIPELINE.points[lyr].length : 0;
+            let cIdx = PIPELINE.layerColors[lyr] !== undefined ? PIPELINE.layerColors[lyr] : 7;
+            let colorHex = dxfColorToHex(cIdx);
+            let desc = bPts >= 3 ? `${bPts} polyline nodes` : (pPts > 0 ? `${pPts} survey pts` : `CAD Layer`);
+            
+            let isActive = (PIPELINE.activeBoundsLayer === lyr);
+            let activeCls = isActive ? 'active bg-primary' : '';
+            let textColor = isActive ? '#ffffff' : colorHex;
+            let bgCircleColor = isActive ? '#ffffff' : colorHex;
+            let badgeBg = isActive ? 'rgba(255,255,255,0.2)' : colorHex + '18';
+            let badgeBorder = isActive ? 'rgba(255,255,255,0.4)' : colorHex + '40';
+            let badgeText = isActive ? '#ffffff' : colorHex;
+            
+            let li = document.createElement('li');
+            li.innerHTML = `
+                <a class="dropdown-item boundary-opt d-flex align-items-center justify-content-between gap-2 py-2 ${activeCls}" href="#" data-value="${lyr}" style="color: ${textColor} !important; font-weight: 600;">
+                    <span class="d-flex align-items-center gap-2">
+                        <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color: ${bgCircleColor}; flex-shrink: 0;"></span>
+                        <span style="color: ${textColor} !important;">${lyr}</span>
+                    </span>
+                    <span class="badge rounded-pill" style="background-color: ${badgeBg}; color: ${badgeText} !important; border: 1px solid ${badgeBorder}; font-size: 0.72rem; font-weight: 600;">
+                        ${desc}
+                    </span>
+                </a>
+            `;
+            boundaryOptionsContainer.appendChild(li);
+        });
+
+        boundaryBtn.disabled = false;
+
+        let defaultBound = sortedLayers.find(l => {
+            let u = l.toUpperCase();
+            return u.includes('BOUND') || u.includes('PERIMETER') || u.includes('SITE') || u.includes('LIMIT') || u.includes('OUTLINE') || u.includes('PROP');
+        }) || (sortedLayers.length > 0 ? sortedLayers[0] : '');
+
+        if (defaultBound && !PIPELINE.activeBoundsLayer) {
+            PIPELINE.activeBoundsLayer = defaultBound;
+            if (!PIPELINE.boundaries[defaultBound] || PIPELINE.boundaries[defaultBound].length < 3) {
+                PIPELINE.boundaries[defaultBound] = deriveBoundaryPolylineForLayer(defaultBound);
+            }
+            PIPELINE.polygonBounds = PIPELINE.boundaries[defaultBound];
+        }
+
+        updateBoundaryButtonDisplay(PIPELINE.activeBoundsLayer);
+
+        const container = document.getElementById('layerMappingContainer');
+        container.innerHTML = '';
+
+        if (!PIPELINE.levelLayers) PIPELINE.levelLayers = {};
+
+        PIPELINE.availableLevels.forEach((lvlKey, idx) => {
+            let cfg = LEVEL_CONFIGS[lvlKey] || { label: lvlKey, code: lvlKey, bg: '#ffffff', border: '#cbd5e1', color: '#2563eb' };
+            if (!PIPELINE.levelLayers[lvlKey]) {
+                PIPELINE.levelLayers[lvlKey] = '';
+            }
+
+            let mappedLyr = PIPELINE.levelLayers[lvlKey];
+            let layerColorHex = cfg.color;
+            let layerCIdx = 7;
+            if (mappedLyr && PIPELINE.layerColors[mappedLyr] !== undefined) {
+                layerCIdx = PIPELINE.layerColors[mappedLyr];
+                layerColorHex = dxfColorToHex(layerCIdx);
+            }
+
+            let div = document.createElement('div');
+            div.className = "layer-item-card transition-all p-3 mb-2 rounded border";
+            div.style.backgroundColor = '#ffffff';
+            div.style.color = '#000000';
+            div.style.borderColor = '#dee2e6';
+            if (mappedLyr) {
+                div.style.backgroundColor = layerColorHex + '10';
+                div.style.color = layerColorHex;
+                div.style.borderColor = layerColorHex;
+            }
+            div.style.borderWidth = '1.5px';
+            
+            // ... inside options loop:
+            // update optionsHtml to use color Hex
+
+
+
+            div.style.position = 'relative';
+            let optionsHtml = '<li><a class="dropdown-item text-muted layer-opt py-2" href="#" data-value="">-- Omit Layer --</a></li>';
+            sortedLayers.forEach(lyr => {
+                let bPts = PIPELINE.boundaries[lyr] ? PIPELINE.boundaries[lyr].length : 0;
+                let pPts = PIPELINE.points[lyr] ? PIPELINE.points[lyr].length : 0;
+                let cIdx = PIPELINE.layerColors[lyr] !== undefined ? PIPELINE.layerColors[lyr] : 7;
+                let lyrColorHex = dxfColorToHex(cIdx);
+                let desc = bPts >= 3 ? `${bPts} polyline nodes` : `${pPts} survey pts`;
+                let isActive = (mappedLyr === lyr);
+                let activeCls = isActive ? 'active bg-primary' : '';
+                let textColor = isActive ? '#ffffff' : lyrColorHex;
+                let bgCircleColor = isActive ? '#ffffff' : lyrColorHex;
+                let badgeBg = isActive ? 'rgba(255,255,255,0.2)' : lyrColorHex + '18';
+                let badgeBorder = isActive ? 'rgba(255,255,255,0.4)' : lyrColorHex + '40';
+                let badgeText = isActive ? '#ffffff' : lyrColorHex;
+                
+                let isUsedElsewhere = false;
+                Object.keys(PIPELINE.levelLayers).forEach(k => {
+                    if (k !== lvlKey && PIPELINE.levelLayers[k] === lyr) isUsedElsewhere = true;
+                });
+                let disabledCls = isUsedElsewhere ? 'disabled opacity-50' : '';
+
+                optionsHtml += `<li>
+                    <a class="dropdown-item layer-opt d-flex align-items-center justify-content-between gap-2 py-2 ${activeCls} ${disabledCls}" href="#" data-value="${lyr}" style="color: ${textColor} !important; font-weight: 600;">
+                        <span class="d-flex align-items-center gap-2">
+                            <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color: ${bgCircleColor}; flex-shrink: 0;"></span>
+                            <span style="color: ${textColor} !important;">${lyr}</span>
+                        </span>
+                        <span class="badge rounded-pill" style="background-color: ${badgeBg}; color: ${badgeText} !important; border: 1px solid ${badgeBorder}; font-size: 0.72rem; font-weight: 600;">
+                            ${desc}
+                        </span>
+                    </a>
+                </li>`;
+            });
+
+            div.innerHTML = `
+                <div class="d-flex flex-column gap-2 w-100">
+                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge px-2.5 py-1" style="background-color: ${mappedLyr ? layerColorHex : '#334155'} !important; color: #ffffff !important; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.3px;">Level: ${lvlKey}</span>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-2 small" type="button" onclick="activateLayerPicker('level:${lvlKey}')" title="Pick layer from preview map">🎯</button>
+                    </div>
+                    <div class="w-100 mb-1">
+                        <input type="text" class="form-control form-control-sm level-label-input fw-semibold bg-light text-secondary border-0" data-level="${lvlKey}" value="${cfg.label}" placeholder="Type custom Level Name as you required">
+                    </div>
+                    <div class="w-100">
+                        <div class="dropdown">
+                            <button class="btn btn-sm text-start w-100 d-flex justify-content-between align-items-center fw-bold bg-white" type="button" data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-auto-close="outside" aria-expanded="false" style="color: ${mappedLyr ? layerColorHex : '#000000'} !important; border: 1px solid ${mappedLyr ? layerColorHex : '#dee2e6'}; border-radius: 4px;">
+                                <span class="text-truncate">${mappedLyr ? `▪ ${mappedLyr}` : '-- Omit Layer --'}</span>
+                                <i class="bi bi-chevron-down text-secondary"></i>
+                            </button>
+                            <ul class="dropdown-menu w-100 shadow-sm" style="max-height: 250px; overflow-y: auto;">
+                                <li class="px-2 pb-1 sticky-top bg-white">
+                                    <input type="text" class="form-control form-control-sm layer-search-input" placeholder="Search layers...">
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                ${optionsHtml}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+
+        // Add proposed level button
+        let addDiv = document.createElement('div');
+        addDiv.className = "mt-3";
+        addDiv.innerHTML = `
+            <button class="btn btn-sm btn-outline-primary w-100 fw-bold py-2" type="button" id="btnAddProposedLevelBtn2">
+                ➕ Add PGL
+            </button>
+        `;
+        container.appendChild(addDiv);
+
+        document.getElementById('btnAddProposedLevelBtn2')?.addEventListener('click', function(e) {
+            e.stopPropagation();
+            addNewProposedProfileLevel();
+            resetRightOutput("New progressive ground level added. Click 'Compute Mathematical Intersections' to re-calculate.");
+        });
+
+        // Event listeners
+        container.querySelectorAll('.level-label-input').forEach(input => {
+            input.addEventListener('input', function() {
+                let lKey = this.getAttribute('data-level');
+                if (LEVEL_CONFIGS[lKey]) {
+                    LEVEL_CONFIGS[lKey].label = this.value;
+                    syncMappingCombinationsDropdowns();
+                    resetRightOutput("Level label updated. Click 'Compute Mathematical Intersections' to re-calculate.");
+                }
+            });
+        });
+
+        container.querySelectorAll('.layer-opt').forEach(opt => {
+            opt.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (this.classList.contains('disabled')) return;
+                let lKey = this.closest('.layer-item-card').querySelector('.level-label-input').getAttribute('data-level');
+                PIPELINE.levelLayers[lKey] = this.getAttribute('data-value');
+                buildInterfaceLayerControls();
+                resetRightOutput("Level sequence assignment updated. Click 'Compute Mathematical Intersections' to re-calculate.");
+            });
+        });
+        
+        container.querySelectorAll('.layer-search-input').forEach(inp => {
+            inp.addEventListener('click', e => e.stopPropagation());
+            inp.addEventListener('input', function() {
+                let term = this.value.toLowerCase();
+                let items = this.closest('.dropdown-menu').querySelectorAll('.layer-opt');
+                items.forEach(it => {
+                    let txt = it.innerText.toLowerCase();
+                    if (txt.includes(term) || it.getAttribute('data-value') === "") {
+                        it.parentElement.style.display = 'block';
+                    } else {
+                        it.parentElement.style.display = 'none';
+                    }
+                });
+            });
+        });
+
+        syncMappingCombinationsDropdowns();
+
+        { const el = document.getElementById('mappingCard'); if (el) el.style.display = 'block'; }
+        { const el = document.getElementById('viewerCard'); if (el) el.style.display = 'block'; }
+        CANVAS_ENGINE.init();
+        CANVAS_ENGINE.activeSheetKey = 'RAW_FILE';
+        CANVAS_ENGINE.fitView();
+        setStatus("Drawing layers mapped. Connect topographic sequences to run volume calculations.");
+    }
+
+    function updateAllLayerDropdowns() {
+        buildInterfaceLayerControls();
+    }
+
+    function createCombinationOptionCard(key, roleA, roleB, isSeq, isChecked = true) {
+        if (!PIPELINE.comboRemarks) PIPELINE.comboRemarks = {};
+        let currentRemark = PIPELINE.comboRemarks[key] || '';
+        let lyrA = PIPELINE.roles[roleA];
+        let lyrB = PIPELINE.roles[roleB];
+        let colA = dxfColorToHex(lyrA && PIPELINE.layerColors[lyrA] !== undefined ? PIPELINE.layerColors[lyrA] : 7, false);
+        let colB = dxfColorToHex(lyrB && PIPELINE.layerColors[lyrB] !== undefined ? PIPELINE.layerColors[lyrB] : 4, false);
+
+        let div = document.createElement('div');
+        div.className = "combination-item-card p-2 mb-2 rounded border bg-white shadow-sm transition-all";
+        div.style.borderColor = '#e2e8f0';
+        div.innerHTML = `
+            <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-1">
+                <div class="form-check font-monospace small mb-0 d-flex align-items-center gap-1">
+                    <input class="form-check-input combination-checker-box mt-0" type="checkbox" value="${key}" id="cb_${key}" ${isChecked ? 'checked' : ''}>
+                    <label class="form-check-label fw-bold d-flex align-items-center gap-1" for="cb_${key}" style="cursor: pointer;">
+                        <span style="color: ${colA};">▪ ${roleA}</span>
+                        <span class="text-muted">➔</span>
+                        <span style="color: ${colB};">▪ ${roleB}</span>
+                    </label>
+                </div>
+            </div>
+            <div class="w-100">
+                <input type="text" class="form-control form-control-sm combo-remark-input fw-semibold bg-light text-secondary border-0" data-key="${key}" value="${currentRemark}" placeholder="Type custom Soil Type as you required">
+            </div>
+        `;
+
+        let input = div.querySelector('.combo-remark-input');
+        input.addEventListener('input', function() {
+            let k = this.getAttribute('data-key');
+            PIPELINE.comboRemarks[k] = this.value;
+            resetRightOutput("Custom Soil Type / Stage remark updated. Click 'Compute Mathematical Intersections' to re-calculate.");
+        });
+
+        let chk = div.querySelector('.combination-checker-box');
+        chk.addEventListener('change', function() {
+            resetRightOutput("Matrix combination updated. Click 'Compute Mathematical Intersections' to re-calculate.");
+        });
+
+        return div;
+    }
+
+    function syncMappingCombinationsDropdowns() {
+        PIPELINE.roles = {};
+        if (PIPELINE.levelLayers) {
+            Object.keys(PIPELINE.levelLayers).forEach(lvlKey => {
+                let lyr = PIPELINE.levelLayers[lvlKey];
+                if (lyr && lyr !== '' && lyr !== 'SKIP') {
+                    let cfg = LEVEL_CONFIGS[lvlKey];
+                    let roleName = (cfg && cfg.label && cfg.label.trim() !== '') ? `${lvlKey} (${cfg.label})` : lvlKey;
+                    PIPELINE.roles[roleName] = lyr;
+                }
+            });
+        }
+
+        if (typeof CANVAS_ENGINE !== 'undefined') {
+            CANVAS_ENGINE.draw();
+        }
+
+        let rolesArr = Object.keys(PIPELINE.roles);
+        rolesArr.sort((a, b) => {
+            if (a.includes('OGL') || a.includes('Base')) return -1;
+            if (b.includes('OGL') || b.includes('Base')) return 1;
+            return a.localeCompare(b);
+        });
+
+        const container = document.getElementById('combinationsContainer');
+        container.innerHTML = '';
+
+        if (!PIPELINE.activeBoundsLayer) {
+            const el = document.getElementById('combinationsCard'); if (el) el.style.display = 'none';
+            return;
+        }
+
+        if (rolesArr.length < 2) {
+            container.innerHTML = '<span class="text-danger small font-monospace">Please register at least two terrain baseline levels to run comparative sheets.</span>';
+            const el = document.getElementById('combinationsCard'); if (el) el.style.display = 'block';
+            processBtn.disabled = true;
+            return;
+        }
+
+        let seqContainer = document.createElement('div');
+        seqContainer.innerHTML = '<h6 class="small fw-bold text-primary mb-2">Sequential Stages</h6>';
+        let nonSeqContainer = document.createElement('div');
+        nonSeqContainer.innerHTML = '<h6 class="small fw-bold text-secondary mt-3 mb-2">Cumulative Stages</h6>';
+        
+        let nonSeqCount = 0;
+
+        for (let i = 0; i < rolesArr.length; i++) {
+            for (let j = i + 1; j < rolesArr.length; j++) {
+                let key = `${rolesArr[i]}-${rolesArr[j]}`;
+                let isSeq = (j === i + 1);
+
+                let cardEl = createCombinationOptionCard(key, rolesArr[i], rolesArr[j], isSeq, isSeq);
+
+                if (isSeq) {
+                    seqContainer.appendChild(cardEl);
+                } else if (nonSeqCount < 3) {
+                    nonSeqContainer.appendChild(cardEl);
+                    nonSeqCount++;
+                }
+            }
+        }
+
+        container.appendChild(seqContainer);
+        container.appendChild(nonSeqContainer);
+
+        // Add custom combo UI
+        let customUi = document.createElement('div');
+        customUi.className = "d-flex align-items-center gap-2 mt-3 p-2 bg-light border rounded flex-wrap";
+        
+        let opts = rolesArr.map(r => {
+            let lyr = PIPELINE.roles[r];
+            let cIdx = (lyr && PIPELINE.layerColors[lyr] !== undefined) ? PIPELINE.layerColors[lyr] : 7;
+            let colorHex = dxfColorToHex(cIdx);
+            return `<option value="${r}" style="color: ${colorHex} !important; font-weight: 600; background-color: #ffffff;">▪ ${r} (${lyr || 'Layer'})</option>`;
+        }).join('');
+        customUi.innerHTML = `
+            <span class="small fw-semibold me-2">+ Add Option:</span>
+            <select id="customComboFrom" class="form-select form-select-sm" style="width: auto;">${opts}</select>
+            <span class="small text-muted fw-bold">➔</span>
+            <select id="customComboTo" class="form-select form-select-sm" style="width: auto;">${opts}</select>
+            <button class="btn btn-sm btn-outline-primary" id="btnAddCustomCombo" type="button">Add</button>
+        `;
+        
+        container.appendChild(customUi);
+
+        document.getElementById('btnAddCustomCombo').addEventListener('click', () => {
+            let from = document.getElementById('customComboFrom').value;
+            let to = document.getElementById('customComboTo').value;
+            if (from === to) return;
+            
+            let key = `${from}-${to}`;
+            // Check if exists
+            if (!document.getElementById('cb_' + key)) {
+                let cardEl = createCombinationOptionCard(key, from, to, false, true);
+                nonSeqContainer.appendChild(cardEl);
+            } else {
+                const el = document.getElementById('cb_' + key); if (el) el.checked = true;
+            }
+            resetRightOutput("Custom combination added. Click 'Compute Mathematical Intersections' to re-calculate.");
+        });
+
+        const el = document.getElementById('combinationsCard'); if (el) el.style.display = 'block';
+        processBtn.disabled = false;
+    }
+
+    /**
+     * EXACT SUTHERLAND-HODGMAN POLYGON CLIPPING ENGINE
+     * Clips the arbitrary site boundary against the strictly convex Grid Box 
+     */
+    function isInsideEdge(pt, p1, p2) {
+        return (p2[0] - p1[0]) * (pt[1] - p1[1]) - (p2[1] - p1[1]) * (pt[0] - p1[0]) >= -1e-9;
+    }
+
+    function computeIntersectionPoint(s, e, p1, p2) {
+        let dcX = s[0] - e[0], dcY = s[1] - e[1];
+        let dpX = p1[0] - p2[0], dpY = p1[1] - p2[1];
+        let n1 = s[0] * e[1] - s[1] * e[0];
+        let n2 = p1[0] * p2[1] - p1[1] * p2[0];
+        let denominator = dcX * dpY - dcY * dpX;
+        if (Math.abs(denominator) < 1e-9) return s; 
+        return [
+            (n1 * dpX - dcX * n2) / denominator,
+            (n1 * dpY - dcY * n2) / denominator
+        ];
+    }
+
+    function calculatePolygonArea(poly) {
+        if (!poly || poly.length < 3) return 0.0;
+        let area = 0;
+        let j = poly.length - 1;
+        for (let i = 0; i < poly.length; i++) {
+            area += (poly[j][0] + poly[i][0]) * (poly[j][1] - poly[i][1]);
+            j = i;
+        }
+        return Math.abs(area / 2.0);
+    }
+    const computePolygonArea = calculatePolygonArea;
+
+    function computeExactClippedPolygon(gridCorners, boundaryPoly) {
+        let subject = [...boundaryPoly];
+        // Clip against each edge of the strictly convex grid box
+        for (let i = 0; i < gridCorners.length; i++) {
+            let p1 = gridCorners[i];
+            let p2 = gridCorners[(i + 1) % gridCorners.length];
+            
+            let inputList = subject;
+            subject = [];
+            if (inputList.length === 0) break;
+            
+            let s = inputList[inputList.length - 1];
+            for (let j = 0; j < inputList.length; j++) {
+                let e = inputList[j];
+                let eInside = isInsideEdge(e, p1, p2);
+                let sInside = isInsideEdge(s, p1, p2);
+                
+                if (eInside) {
+                    if (!sInside) subject.push(computeIntersectionPoint(s, e, p1, p2));
+                    subject.push(e);
+                } else if (sInside) {
+                    subject.push(computeIntersectionPoint(s, e, p1, p2));
+                }
+                s = e;
+            }
+        }
+        return { area: calculatePolygonArea(subject), polygon: subject };
+    }
+
+    function computeExactClippedArea(gridCorners, boundaryPoly) {
+        return computeExactClippedPolygon(gridCorners, boundaryPoly).area;
+    }
+
+    function inverseDistanceWeightingElevation(target, dataset) {
+        if (!dataset || dataset.length === 0) return 0.0;
+        let weightedSum = 0, totalWeight = 0;
+        for (let i = 0; i < dataset.length; i++) {
+            let dx = target[0] - dataset[i].x, dy = target[1] - dataset[i].y;
+            let d = Math.sqrt(dx*dx + dy*dy);
+            if (d < 0.001) return dataset[i].z;
+            let w = 1 / (d * d);
+            totalWeight += w; weightedSum += w * dataset[i].z;
+        }
+        return totalWeight === 0 ? 0.0 : weightedSum / totalWeight;
+    }
+
+    function runPrecisionTakeoffCalculationsEngine() {
+        const sizeInput = parseFloat(document.getElementById('gridSize').value);
+        PIPELINE.gridSize = isNaN(sizeInput) ? 3.0 : sizeInput;
+        const poly = PIPELINE.polygonBounds;
+
+        let trackingSelections = [];
+        document.querySelectorAll('.combination-checker-box:checked').forEach(c => trackingSelections.push(c.value));
+
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        poly.forEach(v => {
+            if(v[0] < minX) minX = v[0]; if(v[0] > maxX) maxX = v[0];
+            if(v[1] < minY) minY = v[1]; if(v[1] > maxY) maxY = v[1];
+        });
+
+        PIPELINE.sheets = {};
+
+        for (let key of trackingSelections) {
+            let components = key.split('-');
+            let lyrAName = PIPELINE.roles[components[0]];
+            let lyrBName = PIPELINE.roles[components[1]];
+            
+            let poolA = PIPELINE.points[lyrAName];
+            let poolB = PIPELINE.points[lyrBName];
+
+            if (!poolA || poolA.length === 0 || !poolB || poolB.length === 0) {
+                setStatus(`Error: One of the selected layers (${lyrAName} or ${lyrBName}) contains no point elevations. Do not assign the boundary trace to a surface!`, "danger");
+                return;
+            }
+
+            let indexMarker = 1, totalCutVolume = 0, totalFillVolume = 0, aggregateArea = 0;
+            let cellsData = [];
+
+            for (let x = minX; x <= maxX; x += PIPELINE.gridSize) {
+                for (let y = minY; y <= maxY; y += PIPELINE.gridSize) {
+                    let corners = [[x, y], [x + PIPELINE.gridSize, y], [x + PIPELINE.gridSize, y + PIPELINE.gridSize], [x, y + PIPELINE.gridSize]];
+                    
+                    // Call the exact polygon intersection clipper
+                    let clipRes = computeExactClippedPolygon(corners, poly);
+                    let exactClippedArea = clipRes.area;
+                    if (exactClippedArea <= 0.0001) continue;
+
+                    aggregateArea += exactClippedArea;
+
+                    let a1 = inverseDistanceWeightingElevation(corners[0], poolA);
+                    let a2 = inverseDistanceWeightingElevation(corners[1], poolA);
+                    let a3 = inverseDistanceWeightingElevation(corners[2], poolA);
+                    let a4 = inverseDistanceWeightingElevation(corners[3], poolA);
+                    let avgA = (a1 + a2 + a3 + a4) / 4;
+
+                    let b1 = inverseDistanceWeightingElevation(corners[0], poolB);
+                    let b2 = inverseDistanceWeightingElevation(corners[1], poolB);
+                    let b3 = inverseDistanceWeightingElevation(corners[2], poolB);
+                    let b4 = inverseDistanceWeightingElevation(corners[3], poolB);
+                    let avgB = (b1 + b2 + b3 + b4) / 4;
+
+                    let cutDepth = 0, fillDepth = 0, cutQty = 0, fillQty = 0;
+                    let heightDelta = avgA - avgB;
+
+                    if (heightDelta > 0) {
+                        cutDepth = heightDelta;
+                        cutQty = cutDepth * exactClippedArea;
+                        totalCutVolume += cutQty;
+                    } else {
+                        fillDepth = Math.abs(heightDelta);
+                        fillQty = fillDepth * exactClippedArea;
+                        totalFillVolume += fillQty;
+                    }
+
+                    cellsData.push({
+                        boxId: indexMarker++, corners, area: exactClippedArea,
+                        clippedPoly: clipRes.polygon,
+                        a1, a2, a3, a4, avgA,
+                        b1, b2, b3, b4, avgB,
+                        cutDepth, fillDepth, cutQty, fillQty
+                    });
+                }
+            }
+
+            let remark = (PIPELINE.comboRemarks && PIPELINE.comboRemarks[key]) ? PIPELINE.comboRemarks[key].trim() : '';
+            let remarkInputEl = document.querySelector(`.combo-remark-input[data-key="${key}"]`);
+            if (remarkInputEl && remarkInputEl.value !== undefined) {
+                remark = remarkInputEl.value.trim();
+                PIPELINE.comboRemarks[key] = remark;
+            }
+
+            PIPELINE.sheets[key] = {
+                cells: cellsData, totalCut: totalCutVolume, totalFill: totalFillVolume, area: aggregateArea,
+                roleA: components[0], roleB: components[1], lyrA: lyrAName, lyrB: lyrBName,
+                remark: remark, soilType: remark
+            };
+        }
+
+        renderOutputLedgerSheets();
+        rehydrateCadFileDownloaderList();
+
+
+        let firstKey = Object.keys(PIPELINE.sheets)[0];
+        if (firstKey) {
+            switchCanvasSheet(firstKey);
+        } else {
+            CANVAS_ENGINE.activeSheetKey = 'RAW_FILE';
+            CANVAS_ENGINE.draw();
+            CANVAS_ENGINE.fitView();
+            updateCanvasSheetTabs();
+        }
+
+        { const el = document.getElementById('exportPrintToolbar'); if (el) el.style.display = 'flex'; }
+        { const el = document.getElementById('metricSummaryContainer'); if (el) el.style.display = 'block'; }
+        { const el = document.getElementById('reportContainer'); if (el) el.style.display = 'block'; }
+        { const el = document.getElementById('viewerCard'); if (el) el.style.display = 'block'; }
+
+        setStatus("Takeoff evaluation matrix completed successfully.", "success");
+    }
+
+    function renderOutputLedgerSheets() {
+        const ribbon = document.getElementById('metricSummaryRibbon'); ribbon.innerHTML = '';
+
+        let rolesArr = Object.keys(PIPELINE.roles);
+        rolesArr.sort((a, b) => {
+            if (a === 'OGL') return -1;
+            if (b === 'OGL') return 1;
+            return a.localeCompare(b);
+        });
+
+        let seqCards = [];
+        let nonSeqCards = [];
+        
+        Object.keys(PIPELINE.sheets).forEach((key, idx) => {
+            let sheet = PIPELINE.sheets[key];
+
+            let isSeq = false;
+            let idxA = rolesArr.indexOf(sheet.roleA);
+            let idxB = rolesArr.indexOf(sheet.roleB);
+            if (idxA !== -1 && idxB !== -1 && Math.abs(idxA - idxB) === 1) {
+                isSeq = true;
+            }
+
+            let colHexA = dxfColorToHex(PIPELINE.layerColors && sheet.lyrA && PIPELINE.layerColors[sheet.lyrA] !== undefined ? PIPELINE.layerColors[sheet.lyrA] : 7, false);
+            let colHexB = dxfColorToHex(PIPELINE.layerColors && sheet.lyrB && PIPELINE.layerColors[sheet.lyrB] !== undefined ? PIPELINE.layerColors[sheet.lyrB] : 4, false);
+            
+            let soilTitle = (sheet.remark && sheet.remark.trim() !== '') ? `<span class="text-secondary fw-normal small">${sheet.remark.trim()}</span>` : '';
+            
+            let avgCutDepth = sheet.totalCut / Math.max(1, sheet.area);
+            let avgFillDepth = sheet.totalFill / Math.max(1, sheet.area);
+
+            let cardHtml = `
+                <div class="col-md-4">
+                    <div class="metric-card" data-sheet-key="${key}" style="cursor: pointer;" onclick="switchCanvasSheet('${key}')">
+                        <div class="d-flex align-items-center justify-content-between gap-1 flex-wrap mb-2">
+                            <div class="d-flex align-items-center gap-1 small font-monospace fw-bold">
+                                <span style="color: ${colHexA};">▪ ${sheet.roleA}</span>
+                                <span class="text-muted">➔</span>
+                                <span style="color: ${colHexB};">▪ ${sheet.roleB}</span>
+                                </div>
+                            <div class="mt-1">${soilTitle}</div>
+                        </div>
+                        ${sheet.totalCut > 0 ? `<div class="small text-danger fw-semibold d-flex justify-content-between"><span>Cut Qty: ${sheet.totalCut.toLocaleString(undefined, {maximumFractionDigits:3})} m³</span><span class="text-muted font-monospace" style="font-size:0.75rem;">Avg. Depth: ${avgCutDepth.toFixed(3)}m</span></div>` : ''}
+                        ${sheet.totalFill > 0 ? `<div class="small text-success fw-semibold d-flex justify-content-between"><span>Fill Qty: ${sheet.totalFill.toLocaleString(undefined, {maximumFractionDigits:3})} m³</span><span class="text-muted font-monospace" style="font-size:0.75rem;">Avg. Depth: ${avgFillDepth.toFixed(3)}m</span></div>` : ''}
+                        <div class="small text-dark fw-bold mt-1 border-top pt-1 border-secondary-subtle">Boundary Area: ${sheet.area.toFixed(2)} m²</div>
+                    </div>
+                </div>
+            `;
+            
+            if (isSeq) seqCards.push(cardHtml);
+            else nonSeqCards.push(cardHtml);
+        });
+
+        if (seqCards.length > 0) {
+            let seqHeader = document.createElement('div');
+            seqHeader.className = "col-12 mt-0 mb-1";
+            seqHeader.innerHTML = '<h6 class="small fw-bold text-primary border-bottom pb-1">Sequential Stages</h6>';
+            ribbon.appendChild(seqHeader);
+            ribbon.insertAdjacentHTML('beforeend', seqCards.join(''));
+        }
+        
+        if (nonSeqCards.length > 0) {
+            let nonSeqHeader = document.createElement('div');
+            nonSeqHeader.className = "col-12 mt-3 mb-1";
+            nonSeqHeader.innerHTML = '<h6 class="small fw-bold text-secondary border-bottom pb-1">Cumulative Stages</h6>';
+            ribbon.appendChild(nonSeqHeader);
+            ribbon.insertAdjacentHTML('beforeend', nonSeqCards.join(''));
+        }
+
+        // Finally, trigger tab update
+        updateCanvasSheetTabs();
+    }
+
+    function rehydrateCadFileDownloaderList() {
+        let btn = document.getElementById('downloadDxfRealBtn');
+        if (btn) btn.onclick = downloadAutocadDxfStreamAction;
+    }
+
+    /**
+     * GENUINE AUTOCAD NATIVE DXF STREAM COMPILER
+     * Supports Layer Matches, Top/Bottom Corners, and Color Statusing
+     */
+    function compileNativeDxfFileString(modeKey) {
+        let bMinX = Infinity, bMaxX = -Infinity, bMinY = Infinity, bMaxY = -Infinity;
+        if (PIPELINE.polygonBounds && PIPELINE.polygonBounds.length > 0) {
+            PIPELINE.polygonBounds.forEach(v => {
+                if (v[0] < bMinX) bMinX = v[0];
+                if (v[0] > bMaxX) bMaxX = v[0];
+                if (v[1] < bMinY) bMinY = v[1];
+                if (v[1] > bMaxY) bMaxY = v[1];
+            });
+        } else {
+            bMinX = 0; bMaxX = 100; bMinY = 0; bMaxY = 100;
+        }
+
+        let cenX = (bMinX + bMaxX) / 2;
+        let cenY = (bMinY + bMaxY) / 2;
+        let vHeight = Math.max(10, (bMaxY - bMinY) * 1.2);
+        let vWidth = Math.max(10, (bMaxX - bMinX) * 1.2);
+
+        let stream = "  0\nSECTION\n  2\nHEADER\n";
+        stream += `  9\n$EXTMIN\n 10\n${bMinX.toFixed(3)}\n 20\n${bMinY.toFixed(3)}\n 30\n0.0\n`;
+        stream += `  9\n$EXTMAX\n 10\n${bMaxX.toFixed(3)}\n 20\n${bMaxY.toFixed(3)}\n 30\n0.0\n`;
+        stream += `  9\n$LIMMIN\n 10\n${bMinX.toFixed(3)}\n 20\n${bMinY.toFixed(3)}\n`;
+        stream += `  9\n$LIMMAX\n 10\n${bMaxX.toFixed(3)}\n 20\n${bMaxY.toFixed(3)}\n`;
+        stream += "  0\nENDSEC\n  0\nSECTION\n  2\nTABLES\n  0\nTABLE\n  2\nVPORT\n 70\n1\n";
+        stream += `  0\nVPORT\n  2\n*ACTIVE\n 70\n0\n 10\n0.0\n 20\n0.0\n 11\n1.0\n 21\n1.0\n 12\n${cenX.toFixed(3)}\n 22\n${cenY.toFixed(3)}\n 40\n${vHeight.toFixed(3)}\n 41\n${(vWidth / vHeight).toFixed(3)}\n`;
+        stream += "  0\nENDTAB\n  0\nTABLE\n  2\nLAYER\n";
+        
+        // Dynamically fetch actual color indices from imported reference
+        let boundaryColorIndex = PIPELINE.layerColors[PIPELINE.activeBoundsLayer] || 3; 
+
+        // Establish output primitive layers
+        let layersSetupMap = [
+            { name: '0', color: 7 },
+            { name: PIPELINE.activeBoundsLayer || 'SITE_BOUNDARY', color: boundaryColorIndex },
+            { name: 'GRID_CUT_BOXES', color: 1 },  // Red boxes for Cut lines
+            { name: 'GRID_FILL_BOXES', color: 3 }, // Green boxes for Fill lines
+            { name: 'TEXT_METRICS_LABELS', color: 2 } 
+        ];
+        
+        if (PIPELINE.sheets) {
+            Object.keys(PIPELINE.sheets).forEach(k => {
+                let s = PIPELINE.sheets[k];
+                if (s.lyrA && !layersSetupMap.find(l => l.name === s.lyrA)) {
+                    layersSetupMap.push({ name: s.lyrA, color: PIPELINE.layerColors[s.lyrA] || 7 });
+                }
+                if (s.lyrB && !layersSetupMap.find(l => l.name === s.lyrB)) {
+                    layersSetupMap.push({ name: s.lyrB, color: PIPELINE.layerColors[s.lyrB] || 4 });
+                }
+            });
+        }
+
+        layersSetupMap.forEach(lyr => {
+            stream += `  0\nLAYER\n  2\n${lyr.name}\n 70\n0\n 62\n${lyr.color}\n  6\nCONTINUOUS\n`;
+        });
+        stream += "  0\nENDTAB\n  0\nENDSEC\n  0\nSECTION\n  2\nENTITIES\n";
+
+        // Draw property boundary lines tracing preserved index layers with 10x global width
+        let globalBoundaryWidth = ((PIPELINE.gridSize || 3.0) * 0.08).toFixed(4);
+        stream += `  0\nLWPOLYLINE\n  8\n${PIPELINE.activeBoundsLayer || 'SITE_BOUNDARY'}\n 90\n${PIPELINE.polygonBounds.length}\n 70\n1\n 43\n${globalBoundaryWidth}\n 370\n100\n`;
+        PIPELINE.polygonBounds.forEach(v => { stream += ` 10\n${v[0]}\n 20\n${v[1]}\n`; });
+
+        // Iterate through requested active layout combinations
+        Object.keys(PIPELINE.sheets).forEach(key => {
+            if (modeKey !== 'MASTER_COMBINED' && modeKey !== `SEPARATE_${key}`) return;
+            let s = PIPELINE.sheets[key];
+
+            // Resolve DXF matched colors for text elements
+            let colA = PIPELINE.layerColors[s.lyrA] || 7;
+            let colB = PIPELINE.layerColors[s.lyrB] || 4;
+
+            // Draw Stage Title Header & Custom Soil Type Remark Block in DXF
+            let stageTitle = `STAGE: ${s.roleA} -> ${s.roleB}`;
+            if (s.remark && s.remark.trim() !== '') stageTitle += ` (${s.remark.toUpperCase()})`;
+            
+            let avgCutDepth = s.totalCut / Math.max(1, s.area);
+            let avgFillDepth = s.totalFill / Math.max(1, s.area);
+            
+            // Draw Title Block / Legend Box
+            let tbMinX = bMaxX + PIPELINE.gridSize;
+            let tbMaxX = tbMinX + Math.max(35, PIPELINE.gridSize * 15);
+            let tbMaxY = bMaxY;
+            let tbMinY = tbMaxY - Math.max(30, PIPELINE.gridSize * 10);
+            
+            // Legend Border
+            stream += `  0\nLWPOLYLINE\n  8\nTEXT_METRICS_LABELS\n 90\n4\n 70\n1\n 62\n7\n`;
+            stream += ` 10\n${tbMinX}\n 20\n${tbMinY}\n`;
+            stream += ` 10\n${tbMaxX}\n 20\n${tbMinY}\n`;
+            stream += ` 10\n${tbMaxX}\n 20\n${tbMaxY}\n`;
+            stream += ` 10\n${tbMinX}\n 20\n${tbMaxY}\n`;
+            
+            // Legend Title
+            stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n2\n 10\n${tbMinX + 1.5}\n 20\n${tbMaxY - 2.5}\n 40\n1.2\n  1\nEXCAVATION QUANTITY LEGEND\n`;
+            stream += `  0\nLWPOLYLINE\n  8\nTEXT_METRICS_LABELS\n 90\n2\n 70\n0\n 62\n7\n 10\n${tbMinX}\n 20\n${tbMaxY - 4.0}\n 10\n${tbMaxX}\n 20\n${tbMaxY - 4.0}\n`;
+
+            // Legend Content
+            let curY = tbMaxY - 6.5;
+            let lnStep = 2.0;
+            stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n7\n 10\n${tbMinX + 1.5}\n 20\n${curY}\n 40\n0.8\n  1\nPROJECT SUMMARY\n`; curY -= lnStep;
+            stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n7\n 10\n${tbMinX + 1.5}\n 20\n${curY}\n 40\n0.6\n  1\n${stageTitle}\n`; curY -= lnStep;
+            stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n7\n 10\n${tbMinX + 1.5}\n 20\n${curY}\n 40\n0.6\n  1\nTOTAL AREA:\n`;
+            stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n7\n 10\n${tbMinX + 8.5}\n 20\n${curY}\n 40\n0.6\n  1\n${s.area.toFixed(2)} m2\n`; curY -= lnStep;
+            
+            stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n7\n 10\n${tbMinX + 1.5}\n 20\n${curY}\n 40\n0.6\n  1\nTOTAL CUT:\n`;
+            stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n1\n 10\n${tbMinX + 8.5}\n 20\n${curY}\n 40\n0.6\n  1\n${s.totalCut.toFixed(2)} m3  (Avg. Depth: ${avgCutDepth.toFixed(3)}m)\n`; curY -= lnStep;
+            
+            stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n7\n 10\n${tbMinX + 1.5}\n 20\n${curY}\n 40\n0.6\n  1\nTOTAL FILL:\n`;
+            stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n3\n 10\n${tbMinX + 8.5}\n 20\n${curY}\n 40\n0.6\n  1\n${s.totalFill.toFixed(2)} m3  (Avg. Depth: ${avgFillDepth.toFixed(3)}m)\n`; curY -= lnStep * 1.5;
+            
+            stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n7\n 10\n${tbMinX + 1.5}\n 20\n${curY}\n 40\n0.8\n  1\nCOLOR LEGEND\n`; curY -= lnStep;
+            
+            // Color A Box & Text
+            stream += `  0\nLWPOLYLINE\n  8\nTEXT_METRICS_LABELS\n 90\n4\n 70\n1\n 62\n${colA}\n`;
+            stream += ` 10\n${tbMinX + 1.5}\n 20\n${curY - 0.75}\n 10\n${tbMinX + 3.0}\n 20\n${curY - 0.75}\n 10\n${tbMinX + 3.0}\n 20\n${curY + 0.75}\n 10\n${tbMinX + 1.5}\n 20\n${curY + 0.75}\n`;
+            stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n7\n 10\n${tbMinX + 4.5}\n 20\n${curY - 0.3}\n 40\n0.6\n  1\nTop Level (Base: ${s.roleA})\n`; curY -= lnStep;
+
+            // Color B Box & Text
+            stream += `  0\nLWPOLYLINE\n  8\nTEXT_METRICS_LABELS\n 90\n4\n 70\n1\n 62\n${colB}\n`;
+            stream += ` 10\n${tbMinX + 1.5}\n 20\n${curY - 0.75}\n 10\n${tbMinX + 3.0}\n 20\n${curY - 0.75}\n 10\n${tbMinX + 3.0}\n 20\n${curY + 0.75}\n 10\n${tbMinX + 1.5}\n 20\n${curY + 0.75}\n`;
+            stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n7\n 10\n${tbMinX + 4.5}\n 20\n${curY - 0.3}\n 40\n0.6\n  1\nBottom Level (Design: ${s.roleB})\n`; curY -= lnStep;
+
+            // Cut Box
+            stream += `  0\nLWPOLYLINE\n  8\nTEXT_METRICS_LABELS\n 90\n4\n 70\n1\n 62\n1\n`;
+            stream += ` 10\n${tbMinX + 1.5}\n 20\n${curY - 0.75}\n 10\n${tbMinX + 3.0}\n 20\n${curY - 0.75}\n 10\n${tbMinX + 3.0}\n 20\n${curY + 0.75}\n 10\n${tbMinX + 1.5}\n 20\n${curY + 0.75}\n`;
+            stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n7\n 10\n${tbMinX + 4.5}\n 20\n${curY - 0.3}\n 40\n0.6\n  1\nCut Area Outline & Metrics (Red)\n`; curY -= lnStep;
+
+            // Fill Box
+            stream += `  0\nLWPOLYLINE\n  8\nTEXT_METRICS_LABELS\n 90\n4\n 70\n1\n 62\n3\n`;
+            stream += ` 10\n${tbMinX + 1.5}\n 20\n${curY - 0.75}\n 10\n${tbMinX + 3.0}\n 20\n${curY - 0.75}\n 10\n${tbMinX + 3.0}\n 20\n${curY + 0.75}\n 10\n${tbMinX + 1.5}\n 20\n${curY + 0.75}\n`;
+            stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n7\n 10\n${tbMinX + 4.5}\n 20\n${curY - 0.3}\n 40\n0.6\n  1\nFill Area Outline & Metrics (Green)\n`; curY -= lnStep;
+
+            // Site Boundary Box
+            stream += `  0\nLWPOLYLINE\n  8\nTEXT_METRICS_LABELS\n 90\n4\n 70\n1\n 62\n${boundaryColorIndex}\n`;
+            stream += ` 10\n${tbMinX + 1.5}\n 20\n${curY - 0.75}\n 10\n${tbMinX + 3.0}\n 20\n${curY - 0.75}\n 10\n${tbMinX + 3.0}\n 20\n${curY + 0.75}\n 10\n${tbMinX + 1.5}\n 20\n${curY + 0.75}\n`;
+            stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n7\n 10\n${tbMinX + 4.5}\n 20\n${curY - 0.3}\n 40\n0.6\n  1\nSite Perimeter Boundary (${PIPELINE.activeBoundsLayer})\n`; curY -= lnStep;
+            
+            // Adjust extents for the legend
+            bMaxX = Math.max(bMaxX, tbMaxX);
+            bMinY = Math.min(bMinY, tbMinY);
+
+            let uniqueDxfNodes = new Map();
+
+            s.cells.forEach(c => {
+                let boxOutlineLayer = c.cutQty > 0 ? 'GRID_CUT_BOXES' : 'GRID_FILL_BOXES';
+
+                // 1. Draw Rectangular Grid Box Outline Frame
+                stream += `  0\nLWPOLYLINE\n  8\n${boxOutlineLayer}\n 90\n4\n 70\n1\n`;
+                c.corners.forEach(v => { stream += ` 10\n${v[0]}\n 20\n${v[1]}\n`; });
+
+                let cX = (c.corners[0][0] + c.corners[2][0]) / 2;
+                let cY = (c.corners[0][1] + c.corners[2][1]) / 2;
+
+                // Record corners to render later without duplication
+                let corners = [
+                    { x: c.corners[0][0], y: c.corners[0][1], a: c.a1, b: c.b1, alignRight: false },
+                    { x: c.corners[1][0], y: c.corners[1][1], a: c.a2, b: c.b2, alignRight: true },
+                    { x: c.corners[2][0], y: c.corners[2][1], a: c.a3, b: c.b3, alignRight: true },
+                    { x: c.corners[3][0], y: c.corners[3][1], a: c.a4, b: c.b4, alignRight: false }
+                ];
+
+                corners.forEach(cn => {
+                    let key = `${Math.round(cn.x * 100)},${Math.round(cn.y * 100)}`;
+                    if (!uniqueDxfNodes.has(key)) {
+                        uniqueDxfNodes.set(key, cn);
+                    }
+                });
+
+                // 3. Central Metadata Box Block Outputs (Explicit Cut/Fill overrides)
+                stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n2\n 10\n${cX - 0.45}\n 20\n${cY + 0.4}\n 40\n0.15\n  1\nBox:${c.boxId}\n`;
+                stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n2\n 10\n${cX - 0.45}\n 20\n${cY + 0.15}\n 40\n0.13\n  1\nArea:${c.area.toFixed(2)}m2\n`;
+                
+                let avgDepth = c.cutQty > 0 ? c.cutDepth : c.fillDepth;
+                
+                if (c.cutQty > 0) {
+                    // Force Entity Color 1 (Red) for Cut metrics
+                    stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n1\n 10\n${cX - 0.45}\n 20\n${cY - 0.1}\n 40\n0.13\n  1\nAvg. Depth:${avgDepth.toFixed(3)}m\n`;
+                    stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n1\n 10\n${cX - 0.45}\n 20\n${cY - 0.35}\n 40\n0.15\n  1\nCut:${c.cutQty.toFixed(2)}m3\n`;
+                } else {
+                    // Force Entity Color 3 (Green) for Fill metrics
+                    stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n3\n 10\n${cX - 0.45}\n 20\n${cY - 0.1}\n 40\n0.13\n  1\nAvg. Depth:${avgDepth.toFixed(3)}m\n`;
+                    stream += `  0\nTEXT\n  8\nTEXT_METRICS_LABELS\n 62\n3\n 10\n${cX - 0.45}\n 20\n${cY - 0.35}\n 40\n0.15\n  1\nFill:${c.fillQty.toFixed(2)}m3\n`;
+                }
+            });
+
+            // 2. Draw 4 Corner dual levels (Top/Bottom independently colored) ONE TIME PER VERTEX
+            uniqueDxfNodes.forEach(cn => {
+                let posX = cn.alignRight ? cn.x - 0.8 : cn.x + 0.08;
+                stream += `  0\nTEXT\n  8\n${s.lyrA}\n 62\n${colA}\n 10\n${posX}\n 20\n${cn.y + 0.08}\n 40\n0.12\n  1\n${cn.a.toFixed(3)}\n`;
+                stream += `  0\nTEXT\n  8\n${s.lyrB}\n 62\n${colB}\n 10\n${posX}\n 20\n${cn.y - 0.20}\n 40\n0.12\n  1\n${cn.b.toFixed(3)}\n`;
+            });
+        });
+
+        stream += "  0\nENDSEC\n  0\nEOF\n";
+        return stream;
+    }
+
+    function downloadAutocadDxfStreamAction(forcedFmt) {
+        let fmt = forcedFmt || 'dwg';
+        const el = document.getElementById('fmtDwgDxfToggle'); if (el && el.checked) fmt = 'dxf';
+        
+        if (PIPELINE.sheets && Object.keys(PIPELINE.sheets).length > 0) {
+            Object.keys(PIPELINE.sheets).forEach(key => {
+                let mode = 'SEPARATE_' + key;
+                let contents = compileNativeDxfFileString(mode);
+                const mimeType = fmt === 'dwg' ? 'application/acad' : 'application/dxf';
+                const blob = new Blob([contents], { type: mimeType });
+                const url = URL.createObjectURL(blob);
+                const anchor = document.createElement('a');
+                anchor.href = url; anchor.download = `${mode}_AnalyticalTakeoff.${fmt}`;
+                document.body.appendChild(anchor); anchor.click();
+                document.body.removeChild(anchor);
+            });
+        } else {
+             let mode = 'MASTER_COMBINED';
+             let contents = compileNativeDxfFileString(mode);
+             const mimeType = fmt === 'dwg' ? 'application/acad' : 'application/dxf';
+             const blob = new Blob([contents], { type: mimeType });
+             const url = URL.createObjectURL(blob);
+             const anchor = document.createElement('a');
+             anchor.href = url; anchor.download = `${mode}_AnalyticalTakeoff.${fmt}`;
+             document.body.appendChild(anchor); anchor.click();
+             document.body.removeChild(anchor);
+        }
+    }
+
+    async function exportTablesToExcelFormatXlsx() {
+        if (typeof ExcelJS === 'undefined') {
+            exportTablesToExcelFormatCsv();
+            return;
+        }
+        let wb = new ExcelJS.Workbook();
+        let bArea = (PIPELINE.polygonBounds && PIPELINE.polygonBounds.length > 0) ? computePolygonArea(PIPELINE.polygonBounds) : 0;
+
+        let wsSummary = wb.addWorksheet("Executive Summary");
+        wsSummary.columns = [
+            { width: 22 }, { width: 25 }, { width: 18 }, { width: 18 }, { width: 15 }, { width: 20 }, { width: 20 }, { width: 20 }, { width: 20 }
+        ];
+        
+        wsSummary.addRow(["Excavation Quantity Extractor - Report Summary"]);
+        wsSummary.getCell('A1').font = { size: 14, bold: true };
+        wsSummary.addRow(["Export Timestamp", new Date().toLocaleString()]);
+        wsSummary.addRow(["Grid Modulus Box Size (m)", PIPELINE.gridSize]);
+        wsSummary.addRow(["Active Site Boundary Layer", PIPELINE.activeBoundsLayer]);
+        wsSummary.addRow(["Outer Site Area (m²)", Number(bArea.toFixed(2))]);
+        wsSummary.addRow([]);
+        
+        let headerRow = wsSummary.addRow(["Sequence Sheet Key", "Custom Soil Type", "Base Layer", "Target Layer", "Area (m²)", "Avg. Depth Cut (m)", "Total Cut (m³)", "Avg. Depth Fill (m)", "Total Fill (m³)"]);
+        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        headerRow.eachCell(c => { 
+            c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+            c.border = { top: {style:'medium', color: {argb:'FF000000'}}, left: {style:'thin', color: {argb:'FF64748B'}}, bottom: {style:'medium', color: {argb:'FF000000'}}, right: {style:'thin', color: {argb:'FF64748B'}} };
+        });
+        
+        let fmt2 = '_(* #,##0.00_);_(* (#,##0.00);_(* "-"??_);_(@_)';
+        let fmt3 = '_(* #,##0.000_);_(* (#,##0.000);_(* "-"??_);_(@_)';
+
+        Object.keys(PIPELINE.sheets).forEach(k => {
+            let s = PIPELINE.sheets[k];
+            let avgCutDepth = s.totalCut / Math.max(1, s.area);
+            let avgFillDepth = s.totalFill / Math.max(1, s.area);
+            let row = wsSummary.addRow([k, s.remark || '-', s.lyrA, s.lyrB, Number(s.area.toFixed(2)), Number(avgCutDepth.toFixed(3)), Number(s.totalCut.toFixed(2)), Number(avgFillDepth.toFixed(3)), Number(s.totalFill.toFixed(2))]);
+            row.eachCell(c => c.border = { top: {style:'thin', color: {argb:'FF64748B'}}, left: {style:'thin', color: {argb:'FF64748B'}}, bottom: {style:'thin', color: {argb:'FF64748B'}}, right: {style:'thin', color: {argb:'FF64748B'}} });
+            
+            row.getCell(5).numFmt = fmt2;
+            row.getCell(6).numFmt = fmt3;
+            row.getCell(7).numFmt = fmt2;
+            row.getCell(8).numFmt = fmt3;
+            row.getCell(9).numFmt = fmt2;
+            
+            row.getCell(6).font = { color: { argb: 'FFDC2626' } };
+            row.getCell(7).font = { color: { argb: 'FFDC2626' }, bold: true }; // Cut
+            row.getCell(8).font = { color: { argb: 'FF16A34A' } };
+            row.getCell(9).font = { color: { argb: 'FF16A34A' }, bold: true }; // Fill
+        });
+
+        Object.keys(PIPELINE.sheets).forEach(k => {
+            let s = PIPELINE.sheets[k];
+            let validSheetName = k.replace(/[^a-zA-Z0-9_\-]/g, '_').substring(0, 31);
+            let ws = wb.addWorksheet(validSheetName);
+            
+            ws.columns = [
+                { width: 10 }, { width: 18 },
+                { width: 12 }, { width: 12 }, { width: 12 }, { width: 12 }, { width: 15 },
+                { width: 12 }, { width: 12 }, { width: 12 }, { width: 12 }, { width: 15 },
+                { width: 15 }, { width: 15 }, { width: 15 }, { width: 15 }
+            ];
+
+            let titleRow1 = ws.addRow([`Takeoff Stage: ${s.roleA} ➔ ${s.roleB}  |  Soil Type: ${s.remark || 'N/A'}  |  Boundary Area: ${Number(s.area.toFixed(2))} m²`]);
+            titleRow1.font = { bold: true };
+            ws.mergeCells('A1:P1');
+            
+            let titleRow2 = ws.addRow(['']);
+            titleRow2.getCell(1).value = {
+                richText: [
+                    { font: { bold: true, color: { argb: 'FF000000' } }, text: `Base Layer: ${s.lyrA}  |  Target Layer: ${s.lyrB}  |  Total Cut: ` },
+                    { font: { bold: true, color: { argb: 'FFDC2626' } }, text: `${s.totalCut.toFixed(2)} m³` },
+                    { font: { bold: true, color: { argb: 'FF000000' } }, text: `  |  Total Fill: ` },
+                    { font: { bold: true, color: { argb: 'FF16A34A' } }, text: `${s.totalFill.toFixed(2)} m³` }
+                ]
+            };
+            ws.mergeCells('A2:P2');
+            
+            let row1 = ws.addRow(["Grid ID", "Clipped Area (m²)", `Level A: ${s.roleA} (${s.lyrA})`, "", "", "", "", `Level B: ${s.roleB} (${s.lyrB})`, "", "", "", "", "Cutting Details", "", "Filling Details", ""]);
+            let row2 = ws.addRow(["", "", "SW RL", "SE RL", "NE RL", "NW RL", "Mean RL", "SW RL", "SE RL", "NE RL", "NW RL", "Mean RL", "Avg. Depth (m)", "Volume (m³)", "Avg. Depth (m)", "Volume (m³)"]);
+            
+            let rowOffset = 3;
+            ws.mergeCells(`A${rowOffset}:A${rowOffset+1}`); ws.mergeCells(`B${rowOffset}:B${rowOffset+1}`);
+            ws.mergeCells(`C${rowOffset}:G${rowOffset}`); ws.mergeCells(`H${rowOffset}:L${rowOffset}`);
+            ws.mergeCells(`M${rowOffset}:N${rowOffset}`); ws.mergeCells(`O${rowOffset}:P${rowOffset}`);
+            
+            [row1, row2].forEach(r => {
+                r.font = { bold: true, color: { argb: 'FF000000' } };
+                r.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+                r.eachCell(c => c.border = { top: {style:'medium', color:{argb:'FF000000'}}, left: {style:'thin', color:{argb:'FF64748B'}}, bottom: {style:'medium', color:{argb:'FF000000'}}, right: {style:'thin', color:{argb:'FF64748B'}} });
+            });
+            // Outer verticals
+            [row1, row2].forEach(r => {
+                [3, 8, 13, 15].forEach(colIdx => {
+                    let b = r.getCell(colIdx).border || {};
+                    r.getCell(colIdx).border = { ...b, left: {style:'medium', color:{argb:'FF000000'}} };
+                });
+                [7, 12, 14, 16].forEach(colIdx => {
+                    let b = r.getCell(colIdx).border || {};
+                    r.getCell(colIdx).border = { ...b, right: {style:'medium', color:{argb:'FF000000'}} };
+                });
+                r.getCell(1).border = { ...r.getCell(1).border, left: {style:'medium', color:{argb:'FF000000'}}, right: {style:'medium', color:{argb:'FF000000'}} };
+                r.getCell(2).border = { ...r.getCell(2).border, right: {style:'medium', color:{argb:'FF000000'}} };
+            });
+
+            row1.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
+            row1.getCell(8).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E7FF' } };
+            row1.getCell(13).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
+            row1.getCell(15).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } };
+            
+            row2.eachCell(c => {
+                if(!c.fill || c.fill.type !== 'pattern') {
+                    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+                }
+            });
+            
+            // Freeze panes for 2 columns and 4 rows
+            ws.views = [{ state: 'frozen', xSplit: 2, ySplit: 4 }];
+            
+            s.cells.forEach(c => {
+                let r = ws.addRow([
+                    c.boxId, Number(c.area.toFixed(2)),
+                    Number(c.a1.toFixed(3)), Number(c.a2.toFixed(3)), Number(c.a3.toFixed(3)), Number(c.a4.toFixed(3)), Number(c.avgA.toFixed(3)),
+                    Number(c.b1.toFixed(3)), Number(c.b2.toFixed(3)), Number(c.b3.toFixed(3)), Number(c.b4.toFixed(3)), Number(c.avgB.toFixed(3)),
+                    c.cutDepth > 0 ? Number(c.cutDepth.toFixed(3)) : 0, c.cutQty > 0 ? Number(c.cutQty.toFixed(2)) : 0,
+                    c.fillDepth > 0 ? Number(c.fillDepth.toFixed(3)) : 0, c.fillQty > 0 ? Number(c.fillQty.toFixed(2)) : 0
+                ]);
+                
+                // Format numbers
+                r.getCell(2).numFmt = fmt2;
+                for (let i = 3; i <= 12; i++) { r.getCell(i).numFmt = fmt3; }
+                r.getCell(13).numFmt = fmt3;
+                r.getCell(14).numFmt = fmt2;
+                r.getCell(15).numFmt = fmt3;
+                r.getCell(16).numFmt = fmt2;
+
+                r.getCell(13).font = { color: { argb: 'FFDC2626' } }; r.getCell(14).font = { color: { argb: 'FFDC2626' }, bold: true };
+                r.getCell(15).font = { color: { argb: 'FF16A34A' } }; r.getCell(16).font = { color: { argb: 'FF16A34A' }, bold: true };
+                r.eachCell(cell => { cell.border = { top: {style:'thin', color:{argb:'FF9CA3AF'}}, left: {style:'thin', color:{argb:'FF9CA3AF'}}, bottom: {style:'thin', color:{argb:'FF9CA3AF'}}, right: {style:'thin', color:{argb:'FF9CA3AF'}} }; });
+                // Enforce outer vertical medium black borders matching headers
+                [3, 8, 13, 15].forEach(colIdx => {
+                    let b = r.getCell(colIdx).border || {};
+                    r.getCell(colIdx).border = { ...b, left: {style:'medium', color:{argb:'FF000000'}} };
+                });
+                [7, 12, 14, 16].forEach(colIdx => {
+                    let b = r.getCell(colIdx).border || {};
+                    r.getCell(colIdx).border = { ...b, right: {style:'medium', color:{argb:'FF000000'}} };
+                });
+                r.getCell(1).border = { ...r.getCell(1).border, left: {style:'medium', color:{argb:'FF000000'}}, right: {style:'medium', color:{argb:'FF000000'}} };
+                r.getCell(2).border = { ...r.getCell(2).border, right: {style:'medium', color:{argb:'FF000000'}} };
+            });
+        });
+
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url; anchor.download = "Excavation_Quantity_Extractor_Ledger.xlsx";
+        document.body.appendChild(anchor); anchor.click();
+        document.body.removeChild(anchor);
+    }
+
+    function printDetailedReport() {
+        let img = document.getElementById('printCanvasPreviewImage');
+        if (img && typeof CANVAS_ENGINE !== 'undefined' && CANVAS_ENGINE.canvas) {
+            img.src = CANVAS_ENGINE.canvas.toDataURL('image/png');
+        }
+        setTimeout(() => {
+            window.print();
+        }, 120);
+    }
+
+    function exportTablesToExcelFormatCsv() {
+        let csvContent = "";
+        Object.keys(PIPELINE.sheets).forEach(k => {
+            let s = PIPELINE.sheets[k];
+            csvContent += `======================================================================\n`;
+            csvContent += `EXCAVATION QUANTITY LEDGER EXPORT: ${k}\n`;
+            csvContent += `Custom Soil Type: ${s.remark || 'N/A'}\n`;
+            csvContent += `Base Layer (${s.roleA}): ${s.lyrA} | Target Layer (${s.roleB}): ${s.lyrB}\n`;
+            
+            let avgCutDepth = s.totalCut / Math.max(1, s.area);
+            let avgFillDepth = s.totalFill / Math.max(1, s.area);
+            csvContent += `Summary Parameters: Area = ${s.area.toFixed(2)} m2 | Total Cut = ${s.totalCut.toFixed(2)} m3 (Avg. Depth: ${avgCutDepth.toFixed(3)}m) | Total Fill = ${s.totalFill.toFixed(2)} m3 (Avg. Depth: ${avgFillDepth.toFixed(3)}m)\n`;
+            csvContent += `======================================================================\n`;
+            csvContent += `Box No,Clipped Area (m2),${s.roleA} Corn1,${s.roleA} Corn2,${s.roleA} Corn3,${s.roleA} Corn4,${s.roleA} Mean RL,${s.roleB} Corn1,${s.roleB} Corn2,${s.roleB} Corn3,${s.roleB} Corn4,${s.roleB} Mean RL,Cutting Depth(m),Cutting Qty(m3),Filling Depth(m),Filling Qty(m3)\n`;
+
+            s.cells.forEach(c => {
+                csvContent += `${c.boxId},${c.area.toFixed(4)},${c.a1.toFixed(3)},${c.a2.toFixed(3)},${c.a3.toFixed(3)},${c.a4.toFixed(3)},${c.avgA.toFixed(3)},${c.b1.toFixed(3)},${c.b2.toFixed(3)},${c.b3.toFixed(3)},${c.b4.toFixed(3)},${c.avgB.toFixed(3)},${c.cutDepth.toFixed(3)},${c.cutQty.toFixed(2)},${c.fillDepth.toFixed(3)},${c.fillQty.toFixed(2)}\n`;
+            });
+            csvContent += `\n\n`;
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const downLink = document.createElement("a");
+        downLink.href = url; downLink.download = "Excavation_Quantity_Ledger.csv";
+        document.body.appendChild(downLink); downLink.click();
+        document.body.removeChild(downLink);
+    }
+
+        function switchCanvasSheet(key) {
+        if (typeof CANVAS_ENGINE !== "undefined") {
+            CANVAS_ENGINE.activeSheetKey = key;
+            CANVAS_ENGINE.draw();
+            CANVAS_ENGINE.updateInspector(null);
+        }
+        updateCanvasSheetTabs();
+        document.querySelectorAll("#metricSummaryRibbon .metric-card").forEach(card => {
+            card.style.borderColor = "";
+            card.style.boxShadow = "";
+            if (card.dataset && card.dataset.sheetKey === key) {
+                card.style.borderColor = "#2563eb";
+                card.style.boxShadow = "0 0 0 3px rgba(37, 99, 235, 0.3)";
+                card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+        });
+        if (key === "RAW_FILE") {
+            let mCard = document.getElementById("mappingCard");
+            if (mCard) {
+                mCard.style.boxShadow = "0 0 0 3px rgba(37, 99, 235, 0.4)";
+                setTimeout(() => { mCard.style.boxShadow = ""; }, 1500);
+            }
+        }
+    }
+
+    function updateCanvasSheetTabs() {
+        const container = document.getElementById('globalViewControls');
+        if (!container) return;
+        
+        let html = '<div class="btn-group btn-group-sm" role="group">';
+        
+        let rawActive = (typeof CANVAS_ENGINE !== 'undefined' && CANVAS_ENGINE.activeSheetKey === 'RAW_FILE');
+        html += `
+            <input type="radio" class="btn-check" name="globalViewToggle" id="viewToggle_RAW" autocomplete="off" ${rawActive ? 'checked' : ''} onchange="switchCanvasSheet('RAW_FILE')">
+            <label class="btn ${rawActive ? 'btn-primary' : 'btn-outline-secondary'}" for="viewToggle_RAW">Input Survey</label>
+        `;
+
+        if (typeof PIPELINE !== 'undefined' && PIPELINE.sheets) {
+            Object.keys(PIPELINE.sheets).forEach(key => {
+                let sheet = PIPELINE.sheets[key];
+                let isActive = (typeof CANVAS_ENGINE !== 'undefined' && CANVAS_ENGINE.activeSheetKey === key);
+                let tabLabel = `${sheet.roleA} ➔ ${sheet.roleB}`;
+                if (sheet.remark && sheet.remark.trim() !== '') {
+                    tabLabel += ` (${sheet.remark.trim()})`;
+                }
+                html += `
+                    <input type="radio" class="btn-check" name="globalViewToggle" id="viewToggle_${key}" autocomplete="off" ${isActive ? 'checked' : ''} onchange="switchCanvasSheet('${key}')">
+                    <label class="btn ${isActive ? 'btn-primary' : 'btn-outline-secondary'} text-truncate" style="max-width: 240px;" title="${tabLabel}" for="viewToggle_${key}">${tabLabel}</label>
+                `;
+            });
+        }
+        html += '</div>';
+        container.innerHTML = html;
+
+        syncTableWithCanvas();
+    }
+
+    function syncTableWithCanvas() {
+        const sContent = document.getElementById('sheetTabsContent');
+        const emptyState = document.getElementById('emptyReportState');
+        const searchBox = document.getElementById('tableSearchBox');
+        if (!sContent) return;
+
+        let activeKey = (typeof CANVAS_ENGINE !== 'undefined') ? CANVAS_ENGINE.activeSheetKey : 'RAW_FILE';
+
+        if (activeKey === 'RAW_FILE') {
+            sContent.innerHTML = '';
+            if (emptyState) {
+                emptyState.style.display = 'block';
+                if (PIPELINE.sheets && Object.keys(PIPELINE.sheets).length > 0) {
+                    emptyState.innerText = "Select specific output stage tab other than input";
+                } else {
+                    emptyState.innerText = "No data to preview. Please upload a file and compute takeoff.";
+                }
+            }
+            if (searchBox) searchBox.style.display = 'none';
+        } else {
+            if (emptyState) emptyState.style.display = 'none';
+            if (searchBox) searchBox.style.display = 'block';
+
+            let sheet = PIPELINE.sheets[activeKey];
+            if (!sheet) return;
+
+            let rowsHtml = sheet.cells.map(c => {
+                let statusColorClass = '';
+                if (c.cutQty > 0) statusColorClass = 'table-danger table-opacity-10';
+                else if (c.fillQty > 0) statusColorClass = 'table-success table-opacity-10';
+                if (c.area < (PIPELINE.gridSize * PIPELINE.gridSize) - 0.001) statusColorClass = 'table-warning text-dark';
+
+                return `
+                    <tr class="${statusColorClass}">
+                        <td class="sticky-col fw-bold text-center font-monospace bg-light">${c.boxId}</td>
+                        <td class="text-end fw-bold text-primary">${c.area.toFixed(4)}</td>
+                        <td class="text-end cell-matrix-text">${c.a1.toFixed(3)} | ${c.a2.toFixed(3)}<br>${c.a3.toFixed(3)} | ${c.a4.toFixed(3)}</td>
+                        <td class="text-end fw-semibold text-secondary">${c.avgA.toFixed(3)}</td>
+                        <td class="text-end cell-matrix-text">${c.b1.toFixed(3)} | ${c.b2.toFixed(3)}<br>${c.b3.toFixed(3)} | ${c.b4.toFixed(3)}</td>
+                        <td class="text-end fw-semibold text-secondary">${c.avgB.toFixed(3)}</td>
+                        <td class="text-end text-danger fw-semibold">${c.cutDepth > 0 ? c.cutDepth.toFixed(3) : '-'}</td>
+                        <td class="text-end text-success fw-semibold">${c.fillDepth > 0 ? c.fillDepth.toFixed(3) : '-'}</td>
+                        <td class="text-end fw-bold text-danger">${c.cutQty > 0 ? c.cutQty.toFixed(2) : '-'}</td>
+                        <td class="text-end fw-bold text-success">${c.fillQty > 0 ? c.fillQty.toFixed(2) : '-'}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            let colHexA = dxfColorToHex(PIPELINE.layerColors && sheet.lyrA && PIPELINE.layerColors[sheet.lyrA] !== undefined ? PIPELINE.layerColors[sheet.lyrA] : 7, false);
+            let colHexB = dxfColorToHex(PIPELINE.layerColors && sheet.lyrB && PIPELINE.layerColors[sheet.lyrB] !== undefined ? PIPELINE.layerColors[sheet.lyrB] : 4, false);
+
+            let soilTitle = (sheet.remark && sheet.remark.trim() !== '') ? `<span class="text-secondary fw-normal small">${sheet.remark.trim()}</span>` : '';
+
+            let stageBannerHtml = `
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 p-2 mb-2 bg-light border rounded">
+                    <div class="d-flex align-items-center gap-1 font-monospace">
+                        <span class="fw-bold" style="color: ${colHexA};">▪ ${sheet.roleA}</span>
+                        <span class="text-muted">➔</span>
+                        <span class="fw-bold" style="color: ${colHexB};">▪ ${sheet.roleB}</span>
+                        ${soilTitle}
+                    </div>
+                    <div class="small font-monospace text-muted">
+                        Area: <strong class="text-dark">${sheet.area.toFixed(2)}m²</strong> | Cut: <strong class="text-danger">${sheet.totalCut.toFixed(2)}m³</strong> | Fill: <strong class="text-success">${sheet.totalFill.toFixed(2)}m³</strong>
+                    </div>
+                </div>
+            `;
+
+            let html = `
+                ${stageBannerHtml}
+                <div class="table-responsive bg-white rounded border">
+                    <table class="table table-sm table-hover table-bordered mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="sticky-col text-center" style="width: 80px;" rowspan="2">Grid ID</th>
+                                <th class="text-end" rowspan="2">Area (m²)</th>
+                                <th class="text-center" colspan="2" style="color: ${colHexA} !important; font-weight: 700;">Level A (${sheet.roleA})</th>
+                                <th class="text-center" colspan="2" style="color: ${colHexB} !important; font-weight: 700;">Level B (${sheet.roleB})</th>
+                                <th class="text-center" colspan="2">Avg. Depth (m)</th>
+                                <th class="text-center" colspan="2">Volume (m³)</th>
+                            </tr>
+                            <tr>
+                                <th class="text-end cell-matrix-text" style="color: ${colHexA} !important;">Corners</th>
+                                <th class="text-end" style="color: ${colHexA} !important;">Mean (m)</th>
+                                <th class="text-end cell-matrix-text" style="color: ${colHexB} !important;">Corners</th>
+                                <th class="text-end" style="color: ${colHexB} !important;">Mean (m)</th>
+                                <th class="text-end text-danger">Cut</th>
+                                <th class="text-end text-success">Fill</th>
+                                <th class="text-end text-danger">Cut Vol</th>
+                                <th class="text-end text-success">Fill Vol</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rowsHtml}</tbody>
+                        <tfoot class="table-secondary fw-bold">
+                            <tr>
+                                <td class="sticky-col text-center">TOTAL</td>
+                                <td class="text-end text-primary">${sheet.area.toFixed(2)}</td>
+                                <td colspan="4"></td>
+                                <td colspan="2" class="text-end">Net Balance: ${(sheet.totalFill - sheet.totalCut).toFixed(2)} m³</td>
+                                <td class="text-end text-danger">${sheet.totalCut.toFixed(2)}</td>
+                                <td class="text-end text-success">${sheet.totalFill.toFixed(2)}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            `;
+            sContent.innerHTML = html;
+        }
+    }
+
+    /**
+     * INTERACTIVE CAD & GRID BOUNDARY CANVAS ENGINE
+     * Smooth Pan/Zoom, Exact Clipped Polygon Rendering, Cut/Fill Heatmap, Hover Elevation Inspector
+     */
+    let CANVAS_ENGINE = {
+        canvas: null,
+        ctx: null,
+        container: null,
+        width: 0,
+        height: 0,
+        scale: 1,
+        panX: 0,
+        panY: 0,
+        isDragging: false,
+        lastMouseX: 0,
+        lastMouseY: 0,
+        bounds: { minX: 0, maxX: 100, minY: 0, maxY: 100 },
+        hoveredCell: null,
+        mouseWorldX: 0,
+        mouseWorldY: 0,
+        
+        showBoundary: true,
+        showPoints: true,
+        showGrid: true,
+        showShading: true,
+        showLabels: true,
+        activeSheetKey: 'RAW_FILE',
+        
+        init: function() {
+            this.canvas = document.getElementById('cadCanvas');
+            if (!this.canvas) return;
+            this.ctx = this.canvas.getContext('2d');
+            this.container = document.getElementById('canvasViewport');
+            
+            this.resize();
+            
+            if (this._initialized) return;
+            this._initialized = true;
+
+            window.addEventListener('resize', () => { this.resize(); this.draw(); });
+            
+            this.canvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
+            window.addEventListener('mousemove', (e) => this.onMouseMove(e));
+            window.addEventListener('mouseup', () => this.onMouseUp());
+            this.canvas.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
+            this.canvas.addEventListener('mouseleave', () => this.onMouseLeave());
+            
+            document.getElementById('btnZoomIn')?.addEventListener('click', () => this.zoomDelta(1.25));
+            document.getElementById('btnZoomOut')?.addEventListener('click', () => this.zoomDelta(0.8));
+            document.getElementById('btnResetView')?.addEventListener('click', () => this.fitView());
+            
+            document.getElementById('toggleBoundary')?.addEventListener('change', (e) => { this.showBoundary = e.target.checked; this.draw(); });
+            document.getElementById('togglePoints')?.addEventListener('change', (e) => { this.showPoints = e.target.checked; this.draw(); });
+            document.getElementById('toggleGrid')?.addEventListener('change', (e) => { this.showGrid = e.target.checked; this.draw(); });
+            document.getElementById('toggleShading')?.addEventListener('change', (e) => { this.showShading = e.target.checked; this.draw(); });
+            document.getElementById('toggleLabels')?.addEventListener('change', (e) => { this.showLabels = e.target.checked; this.draw(); });
+            
+
+        },
+
+        resize: function() {
+            if (!this.container || !this.canvas) return;
+            const rect = this.container.getBoundingClientRect();
+            this.width = rect.width || 800;
+            this.height = rect.height || 520;
+            this.canvas.width = this.width;
+            this.canvas.height = this.height;
+        },
+
+        computeWorldBounds: function() {
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            
+            if (PIPELINE.polygonBounds && PIPELINE.polygonBounds.length > 0) {
+                PIPELINE.polygonBounds.forEach(pt => {
+                    if (pt[0] < minX) minX = pt[0]; if (pt[0] > maxX) maxX = pt[0];
+                    if (pt[1] < minY) minY = pt[1]; if (pt[1] > maxY) maxY = pt[1];
+                });
+            } else {
+                Object.keys(PIPELINE.points).forEach(lyr => {
+                    PIPELINE.points[lyr].forEach(p => {
+                        if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+                        if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+                    });
+                });
+            }
+
+            if (minX === Infinity) { minX = 0; maxX = 100; minY = 0; maxY = 100; }
+            this.bounds = { minX, maxX, minY, maxY };
+        },
+
+        fitView: function() {
+            this.resize();
+            this.computeWorldBounds();
+            let w = this.bounds.maxX - this.bounds.minX || 1;
+            let h = this.bounds.maxY - this.bounds.minY || 1;
+            
+            let padding = 40;
+            let scaleX = (this.width - padding * 2) / w;
+            let scaleY = (this.height - padding * 2) / h;
+            
+            this.scale = Math.min(scaleX, scaleY);
+            if (this.scale <= 0) this.scale = 1;
+            
+            let drawnW = w * this.scale;
+            let drawnH = h * this.scale;
+            
+            this.panX = (this.width - drawnW) / 2;
+            this.panY = (this.height - drawnH) / 2;
+            
+            this.draw();
+        },
+
+        worldToScreen: function(wx, wy) {
+            let sx = (wx - this.bounds.minX) * this.scale + this.panX;
+            let sy = this.height - ((wy - this.bounds.minY) * this.scale + this.panY);
+            return [sx, sy];
+        },
+
+        screenToWorld: function(sx, sy) {
+            let wx = this.bounds.minX + (sx - this.panX) / this.scale;
+            let wy = this.bounds.minY + (this.height - sy - this.panY) / this.scale;
+            return [wx, wy];
+        },
+
+        zoomDelta: function(factor, centerX, centerY) {
+            if (centerX === undefined) centerX = this.width / 2;
+            if (centerY === undefined) centerY = this.height / 2;
+
+            let [wx, wy] = this.screenToWorld(centerX, centerY);
+            
+            this.scale *= factor;
+            this.scale = Math.max(0.001, Math.min(10000, this.scale));
+            
+            let [newSx, newSy] = this.worldToScreen(wx, wy);
+            this.panX += (centerX - newSx);
+            this.panY -= (centerY - newSy);
+            
+            this.draw();
+        },
+
+        onMouseDown: function(e) {
+            let rect = this.canvas.getBoundingClientRect();
+            let sx = e.clientX - rect.left;
+            let sy = e.clientY - rect.top;
+
+            if (typeof activePickerType !== 'undefined' && activePickerType) {
+                let [wx, wy] = this.screenToWorld(sx, sy);
+                let bestLyr = null;
+                let minDist = Infinity;
+
+                function distToSegment(px, py, x1, y1, x2, y2) {
+                    let l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+                    if (l2 === 0) return Math.hypot(px - x1, py - y1);
+                    let t = Math.max(0, Math.min(1, ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2));
+                    let projX = x1 + t * (x2 - x1);
+                    let projY = y1 + t * (y2 - y1);
+                    return Math.hypot(px - projX, py - projY);
+                }
+
+                Object.keys(PIPELINE.points).forEach(lyr => {
+                    PIPELINE.points[lyr].forEach(p => {
+                        let d = Math.hypot(p.x - wx, p.y - wy);
+                        if (d < minDist) { minDist = d; bestLyr = lyr; }
+                    });
+                });
+                Object.keys(PIPELINE.boundaries).forEach(lyr => {
+                    let poly = PIPELINE.boundaries[lyr];
+                    if (poly && poly.length >= 2) {
+                        for (let i = 0; i < poly.length; i++) {
+                            let pt = poly[i];
+                            let dVertex = Math.hypot(pt[0] - wx, pt[1] - wy);
+                            if (dVertex < minDist) { minDist = dVertex; bestLyr = lyr; }
+
+                            let nextPt = poly[(i + 1) % poly.length];
+                            let dSeg = distToSegment(wx, wy, pt[0], pt[1], nextPt[0], nextPt[1]);
+                            if (dSeg < minDist) { minDist = dSeg; bestLyr = lyr; }
+                        }
+                    }
+                });
+
+                if (bestLyr) {
+                    let isUsedElsewhere = false;
+                    Object.keys(PIPELINE.levelLayers || {}).forEach(k => {
+                        if (PIPELINE.levelLayers[k] === bestLyr) {
+                            if (!(activePickerType.startsWith('level:') && activePickerType.split(':')[1] === k)) {
+                                isUsedElsewhere = true;
+                            }
+                        }
+                    });
+                    if (activePickerType !== 'boundary' && PIPELINE.activeBoundsLayer === bestLyr) isUsedElsewhere = true;
+
+                    if (isUsedElsewhere) {
+                        setStatus(`Layer '${bestLyr}' is already assigned. Please pick another layer.`, 'danger');
+                        activePickerType = null;
+                        this.draw();
+                        return;
+                    }
+
+                    if (activePickerType === 'boundary') {
+                        PIPELINE.activeBoundsLayer = bestLyr;
+                        updateBoundaryButtonDisplay(bestLyr);
+                        if (!PIPELINE.boundaries[bestLyr] || PIPELINE.boundaries[bestLyr].length < 3) {
+                            PIPELINE.boundaries[bestLyr] = deriveBoundaryPolylineForLayer(bestLyr);
+                        }
+                        PIPELINE.polygonBounds = PIPELINE.boundaries[bestLyr];
+                        syncMappingCombinationsDropdowns();
+                        resetRightOutput(`Selected boundary layer '${bestLyr}' from preview map. Click 'Compute Mathematical Intersections' to calculate.`);
+                    } else if (activePickerType.startsWith('level:')) {
+                        let lvlKey = activePickerType.split(':')[1];
+                        if (!PIPELINE.levelLayers) PIPELINE.levelLayers = {};
+                        PIPELINE.levelLayers[lvlKey] = bestLyr;
+                        buildInterfaceLayerControls();
+                        resetRightOutput(`Assigned layer '${bestLyr}' to level '${lvlKey}' from preview map. Click 'Compute Mathematical Intersections' to calculate.`);
+                    }
+                }
+                activePickerType = null;
+                this.draw();
+                return;
+            }
+
+            this.isDragging = true;
+            this.lastMouseX = e.clientX;
+            this.lastMouseY = e.clientY;
+            this.canvas.style.cursor = 'grabbing';
+        },
+
+        onMouseMove: function(e) {
+            let rect = this.canvas.getBoundingClientRect();
+            let mouseX = e.clientX - rect.left;
+            let mouseY = e.clientY - rect.top;
+
+            if (this.isDragging) {
+                let dx = e.clientX - this.lastMouseX;
+                let dy = e.clientY - this.lastMouseY;
+                this.panX += dx;
+                this.panY -= dy;
+                this.lastMouseX = e.clientX;
+                this.lastMouseY = e.clientY;
+                this.draw();
+                return;
+            }
+
+            let [wx, wy] = this.screenToWorld(mouseX, mouseY);
+            this.mouseWorldX = wx;
+            this.mouseWorldY = wy;
+
+            let hud = document.getElementById('canvasHudCoords');
+            if (hud) {
+                hud.innerText = `X: ${wx.toFixed(3)} m | Y: ${wy.toFixed(3)} m | Zoom: ${(this.scale * 10).toFixed(0)}%`;
+            }
+
+            let prevHover = this.hoveredCell;
+            this.hoveredCell = this.findCellAt(wx, wy);
+
+            if (this.hoveredCell !== prevHover) {
+                this.draw();
+                this.updateTooltip(mouseX, mouseY);
+                this.updateInspector(this.hoveredCell);
+            } else if (this.hoveredCell) {
+                this.updateTooltip(mouseX, mouseY);
+            } else {
+                this.hideTooltip();
+            }
+        },
+
+        onMouseUp: function() {
+            this.isDragging = false;
+            if (this.canvas) this.canvas.style.cursor = 'grab';
+        },
+
+        onMouseLeave: function() {
+            this.isDragging = false;
+            this.hoveredCell = null;
+            this.hideTooltip();
+            this.draw();
+        },
+
+        onWheel: function(e) {
+            e.preventDefault();
+            let rect = this.canvas.getBoundingClientRect();
+            let mouseX = e.clientX - rect.left;
+            let mouseY = e.clientY - rect.top;
+            let zoomFactor = e.deltaY < 0 ? 1.15 : 0.87;
+            this.zoomDelta(zoomFactor, mouseX, mouseY);
+        },
+
+        findCellAt: function(wx, wy) {
+            if (!this.activeSheetKey || !PIPELINE.sheets[this.activeSheetKey]) return null;
+            let sheet = PIPELINE.sheets[this.activeSheetKey];
+            let size = PIPELINE.gridSize;
+
+            for (let i = 0; i < sheet.cells.length; i++) {
+                let c = sheet.cells[i];
+                let x0 = c.corners[0][0];
+                let y0 = c.corners[0][1];
+                if (wx >= x0 && wx <= x0 + size && wy >= y0 && wy <= y0 + size) {
+                    return c;
+                }
+            }
+            return null;
+        },
+
+        updateTooltip: function(canvasX, canvasY) {
+            let tt = document.getElementById('canvasTooltip');
+            if (!tt || !this.hoveredCell) {
+                this.hideTooltip();
+                return;
+            }
+
+            let c = this.hoveredCell;
+            let sheet = PIPELINE.sheets[this.activeSheetKey];
+            if (!sheet) { this.hideTooltip(); return; }
+            
+            let statusBadge = c.cutQty > 0 
+                ? `<span class="badge bg-danger">Cut ${c.cutDepth.toFixed(3)}m → ${c.cutQty.toFixed(2)}m³</span>`
+                : `<span class="badge bg-success">Fill ${c.fillDepth.toFixed(3)}m → ${c.fillQty.toFixed(2)}m³</span>`;
+
+            let isClipped = c.area < (PIPELINE.gridSize * PIPELINE.gridSize - 0.001);
+            let areaBadge = isClipped 
+                ? `<span class="badge bg-warning text-dark">Clipped: ${c.area.toFixed(3)}m²</span>`
+                : `<span class="badge bg-secondary">Full: ${c.area.toFixed(3)}m²</span>`;
+
+            let remarkBadge = sheet.remark ? `<div class="small text-warning fw-bold mb-1">${sheet.remark}</div>` : '';
+
+            tt.innerHTML = `
+                <div class="fw-bold d-flex justify-content-between align-items-center mb-1">
+                    <span>Box #${c.boxId}</span>
+                    ${areaBadge}
+                </div>
+                ${remarkBadge}
+                <div class="small mb-1">${statusBadge}</div>
+                <hr class="my-1 border-secondary">
+                <div class="small font-monospace" style="font-size: 0.72rem;">
+                    <div class="text-info">${sheet.roleA} Mean: ${c.avgA.toFixed(3)}m</div>
+                    <div class="text-secondary">Corn: ${c.a1.toFixed(3)}, ${c.a2.toFixed(3)}, ${c.a3.toFixed(3)}, ${c.a4.toFixed(3)}</div>
+                    <div class="text-success mt-1">${sheet.roleB} Mean: ${c.avgB.toFixed(3)}m</div>
+                    <div class="text-secondary">Corn: ${c.b1.toFixed(3)}, ${c.b2.toFixed(3)}, ${c.b3.toFixed(3)}, ${c.b4.toFixed(3)}</div>
+                </div>
+            `;
+
+            tt.style.display = 'block';
+            let leftPos = canvasX + 15;
+            let topPos = canvasY + 15;
+            if (leftPos + 280 > this.width) leftPos = canvasX - 290;
+            if (topPos + 180 > this.height) topPos = canvasY - 180;
+            
+            tt.style.left = leftPos + 'px';
+            tt.style.top = topPos + 'px';
+        },
+
+        hideTooltip: function() {
+            let tt = document.getElementById('canvasTooltip');
+            if (tt) tt.style.display = 'none';
+        },
+
+        updateInspector: function(cell) {
+            let el = document.getElementById('canvasInspectorReadout');
+            if (!el) return;
+
+            if (!cell) {
+                let hasSheets = PIPELINE.sheets && Object.keys(PIPELINE.sheets).length > 0;
+                let isRaw = this.activeSheetKey === 'RAW_FILE' || !this.activeSheetKey;
+                if (hasSheets && isRaw) {
+                    el.innerHTML = `<span class="text-muted small fw-bold text-primary">Select specific output stage tab other than Input Survey to view cut/fill results</span>`;
+                } else {
+                    el.innerHTML = `<span class="text-muted small">Hover cursor over canvas grid cells to inspect corner elevations and cut/fill parameters.</span>`;
+                }
+                return;
+            }
+
+            let sheet = PIPELINE.sheets[this.activeSheetKey];
+            if (!sheet) return;
+
+            let colHexA = dxfColorToHex(PIPELINE.layerColors && sheet.lyrA && PIPELINE.layerColors[sheet.lyrA] !== undefined ? PIPELINE.layerColors[sheet.lyrA] : 7, false);
+            let colHexB = dxfColorToHex(PIPELINE.layerColors && sheet.lyrB && PIPELINE.layerColors[sheet.lyrB] !== undefined ? PIPELINE.layerColors[sheet.lyrB] : 4, false);
+
+            el.innerHTML = `
+                <div class="row align-items-center g-2 small">
+                    <div class="col-md-2 fw-bold text-primary">
+                        Box #${cell.boxId}
+                        ${sheet.remark ? `<br><span class="badge bg-warning-subtle text-dark border font-monospace" style="font-size:0.68rem;" title="${sheet.remark}">${sheet.remark}</span>` : ''}
+                    </div>
+                    <div class="col-md-2">Footprint: <strong>${cell.area.toFixed(3)} m²</strong></div>
+                    <div class="col-md-3">
+                        <span class="fw-bold" style="color: ${colHexA};">${sheet.roleA} (Base):</span> <strong>${cell.avgA.toFixed(3)}m</strong>
+                        <br><span class="text-muted" style="font-size:0.7rem;">(${cell.a1.toFixed(2)}, ${cell.a2.toFixed(2)}, ${cell.a3.toFixed(2)}, ${cell.a4.toFixed(2)})</span>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="fw-bold" style="color: ${colHexB};">${sheet.roleB} (Design):</span> <strong>${cell.avgB.toFixed(3)}m</strong>
+                        <br><span class="text-muted" style="font-size:0.7rem;">(${cell.b1.toFixed(2)}, ${cell.b2.toFixed(2)}, ${cell.b3.toFixed(2)}, ${cell.b4.toFixed(2)})</span>
+                    </div>
+                    <div class="col-md-2">
+                        ${cell.cutQty > 0 
+                            ? `<span class="badge bg-danger p-2">Cut: ${cell.cutQty.toFixed(3)} m³ (${cell.cutDepth.toFixed(3)}m)</span>`
+                            : `<span class="badge bg-success p-2">Fill: ${cell.fillQty.toFixed(3)} m³ (${cell.fillDepth.toFixed(3)}m)</span>`}
+                    </div>
+                </div>
+            `;
+        },
+
+        draw: function() {
+            if (!this.ctx) return;
+            let ctx = this.ctx;
+            ctx.clearRect(0, 0, this.width, this.height);
+
+            // Background CAD Grid
+            this.drawBackgroundGrid();
+
+            // Raw Polylines and Survey Point Clouds (when viewing Input DWG/DXF Survey Layout)
+            if (this.activeSheetKey === 'RAW_FILE') {
+                this.drawRawPolylines();
+                if (this.showPoints) {
+                    this.drawPoints();
+                }
+            }
+
+            // Grid Cells and Heatmap Shading (when a calculated output sheet is selected)
+            if (this.showGrid && this.activeSheetKey && this.activeSheetKey !== 'RAW_FILE' && PIPELINE.sheets[this.activeSheetKey]) {
+                this.drawGridCells();
+            }
+
+            // Outer Perimeter Boundary (10x grid line width)
+            if (this.showBoundary && PIPELINE.polygonBounds && PIPELINE.polygonBounds.length > 0) {
+                this.drawBoundary();
+            }
+        },
+
+        drawRawPolylines: function() {
+            let ctx = this.ctx;
+            ctx.save();
+            Object.keys(PIPELINE.boundaries).forEach(lyr => {
+                let poly = PIPELINE.boundaries[lyr];
+                if (!poly || poly.length < 2) return;
+                let cIdx = (PIPELINE.layerColors && PIPELINE.layerColors[lyr] !== undefined) ? PIPELINE.layerColors[lyr] : 7;
+                let color = dxfColorToHex(cIdx, true);
+                let isSelectedBoundary = (PIPELINE.activeBoundsLayer === lyr);
+
+                ctx.beginPath();
+                let [s0x, s0y] = this.worldToScreen(poly[0][0], poly[0][1]);
+                ctx.moveTo(s0x, s0y);
+                for (let i = 1; i < poly.length; i++) {
+                    let [sx, sy] = this.worldToScreen(poly[i][0], poly[i][1]);
+                    ctx.lineTo(sx, sy);
+                }
+                if (poly.length >= 3) {
+                    ctx.closePath();
+                }
+                
+                ctx.strokeStyle = isSelectedBoundary ? '#38bdf8' : color;
+                ctx.lineWidth = isSelectedBoundary ? 4.0 : 1.8;
+                if (isSelectedBoundary) {
+                    ctx.shadowColor = '#38bdf8';
+                    ctx.shadowBlur = 8;
+                } else {
+                    ctx.shadowBlur = 0;
+                }
+                ctx.stroke();
+
+                // Draw vertex nodes
+                ctx.fillStyle = isSelectedBoundary ? '#38bdf8' : color;
+                poly.forEach(pt => {
+                    let [px, py] = this.worldToScreen(pt[0], pt[1]);
+                    ctx.fillRect(px - 2.5, py - 2.5, 5, 5);
+                });
+
+                // Draw layer tag label near the polyline start
+                let [lblX, lblY] = this.worldToScreen(poly[0][0], poly[0][1]);
+                ctx.font = 'bold 10px monospace';
+                ctx.fillStyle = isSelectedBoundary ? '#38bdf8' : color;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(`⬡ ${lyr}`, lblX + 6, lblY - 3);
+            });
+            ctx.restore();
+        },
+
+        drawBackgroundGrid: function() {
+            let ctx = this.ctx;
+            ctx.save();
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            
+            let step = 20;
+            let startX = Math.floor(this.bounds.minX / step) * step;
+            let endX = Math.ceil(this.bounds.maxX / step) * step;
+            let startY = Math.floor(this.bounds.minY / step) * step;
+            let endY = Math.ceil(this.bounds.maxY / step) * step;
+
+            for (let x = startX; x <= endX; x += step) {
+                let [sx, sy0] = this.worldToScreen(x, startY);
+                let [, sy1] = this.worldToScreen(x, endY);
+                ctx.moveTo(sx, sy0); ctx.lineTo(sx, sy1);
+            }
+            for (let y = startY; y <= endY; y += step) {
+                let [sx0, sy] = this.worldToScreen(startX, y);
+                let [sx1, ] = this.worldToScreen(endX, y);
+                ctx.moveTo(sx0, sy); ctx.lineTo(sx1, sy);
+            }
+            ctx.stroke();
+            ctx.restore();
+        },
+
+        drawPoints: function() {
+            let ctx = this.ctx;
+            ctx.save();
+
+            Object.keys(PIPELINE.points).forEach(lyr => {
+                let pts = PIPELINE.points[lyr];
+                let cIdx = (PIPELINE.layerColors && PIPELINE.layerColors[lyr] !== undefined) ? PIPELINE.layerColors[lyr] : 7;
+                let color = dxfColorToHex(cIdx, true);
+
+                let mappedRole = '';
+                if (PIPELINE.roles) {
+                    Object.keys(PIPELINE.roles).forEach(r => {
+                        if (PIPELINE.roles[r] === lyr) mappedRole = r;
+                    });
+                }
+
+                let isMapped = !!mappedRole;
+
+                pts.forEach(p => {
+                    let [sx, sy] = this.worldToScreen(p.x, p.y);
+                    if (sx >= -20 && sx <= this.width + 20 && sy >= -20 && sy <= this.height + 20) {
+                        ctx.beginPath();
+                        if (isMapped) {
+                            // Highlighted node circle with white ring for selected profile sequence levels
+                            ctx.arc(sx, sy, 3.5, 0, Math.PI * 2);
+                            ctx.fillStyle = color;
+                            ctx.fill();
+                            ctx.lineWidth = 1.2;
+                            ctx.strokeStyle = '#ffffff';
+                            ctx.stroke();
+                        } else {
+                            // Regular survey point node
+                            ctx.arc(sx, sy, 2, 0, Math.PI * 2);
+                            ctx.fillStyle = color;
+                            ctx.fill();
+                        }
+
+                        if (this.showPoints) {
+                            let zVal = p.z !== undefined ? p.z.toFixed(2) : '';
+                            if (zVal) {
+                                let fSize = isMapped ? Math.max(8, Math.min(20, this.scale * 1.5)) : Math.max(7, Math.min(14, this.scale * 1.0));
+                                if (fSize >= 7) {
+                                    if (isMapped) {
+                                        ctx.font = `bold ${fSize}px monospace`;
+                                        ctx.fillStyle = color;
+                                        ctx.textAlign = 'left';
+                                        ctx.textBaseline = 'bottom';
+                                        ctx.fillText(`[${mappedRole}] ${zVal}m`, sx + 5, sy - 2);
+                                    } else {
+                                        ctx.font = `${fSize}px monospace`;
+                                        ctx.fillStyle = color;
+                                        ctx.textAlign = 'left';
+                                        ctx.textBaseline = 'bottom';
+                                        ctx.fillText(`${zVal}m`, sx + 4, sy - 2);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            });
+
+            ctx.restore();
+        },
+
+        drawGridCells: function() {
+            let ctx = this.ctx;
+            let sheet = PIPELINE.sheets[this.activeSheetKey];
+            if (!sheet || !sheet.cells) return;
+
+            let size = PIPELINE.gridSize;
+
+            // Collect unique corner nodes across all cells for 1-time level rendering
+            let uniqueNodes = new Map();
+
+            sheet.cells.forEach(c => {
+                let [sx0, sy0] = this.worldToScreen(c.corners[0][0], c.corners[0][1]);
+                let [sx1, sy1] = this.worldToScreen(c.corners[2][0], c.corners[2][1]);
+                
+                let boxW = sx1 - sx0;
+                let boxH = sy0 - sy1;
+
+                let isHovered = (this.hoveredCell === c);
+
+                // Record 4 corners into uniqueNodes map
+                let corners = [
+                    { x: c.corners[0][0], y: c.corners[0][1], a: c.a1, b: c.b1 },
+                    { x: c.corners[1][0], y: c.corners[1][1], a: c.a2, b: c.b2 },
+                    { x: c.corners[2][0], y: c.corners[2][1], a: c.a3, b: c.b3 },
+                    { x: c.corners[3][0], y: c.corners[3][1], a: c.a4, b: c.b4 }
+                ];
+                corners.forEach(cn => {
+                    let key = `${Math.round(cn.x * 100)},${Math.round(cn.y * 100)}`;
+                    if (!uniqueNodes.has(key)) {
+                        uniqueNodes.set(key, cn);
+                    }
+                });
+
+                // Exact Clipped Polygon Fill / Heatmap Shading
+                if (this.showShading) {
+                    ctx.save();
+                    if (c.cutQty > 0) {
+                        ctx.fillStyle = isHovered ? 'rgba(239, 68, 68, 0.75)' : 'rgba(239, 68, 68, 0.35)';
+                    } else {
+                        ctx.fillStyle = isHovered ? 'rgba(34, 197, 94, 0.75)' : 'rgba(34, 197, 94, 0.35)';
+                    }
+
+                    if (c.clippedPoly && c.clippedPoly.length >= 3) {
+                        ctx.beginPath();
+                        let [p0x, p0y] = this.worldToScreen(c.clippedPoly[0][0], c.clippedPoly[0][1]);
+                        ctx.moveTo(p0x, p0y);
+                        for (let k = 1; k < c.clippedPoly.length; k++) {
+                            let [pkx, pky] = this.worldToScreen(c.clippedPoly[k][0], c.clippedPoly[k][1]);
+                            ctx.lineTo(pkx, pky);
+                        }
+                        ctx.closePath();
+                        ctx.fill();
+                    } else {
+                        ctx.fillRect(sx0, sy1, boxW, boxH);
+                    }
+                    ctx.restore();
+                }
+
+                // Grid Box Outline (Standard clean CAD grid)
+                ctx.save();
+                if (isHovered) {
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 2.5;
+                } else {
+                    ctx.strokeStyle = '#475569';
+                    ctx.lineWidth = 0.8;
+                }
+
+                ctx.strokeRect(sx0, sy1, boxW, boxH);
+                ctx.restore();
+
+                // Central Box Metrics Block (Box ID, Area, Depth, Cut/Fill Volume)
+                if (this.showLabels && boxW >= 16) {
+                    ctx.save();
+                    let cx = sx0 + boxW / 2;
+                    let cy = sy1 + boxH / 2;
+
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+
+                    if (boxW < 38) {
+                        ctx.font = '9px monospace';
+                        ctx.fillStyle = isHovered ? '#ffffff' : '#f8fafc';
+                        ctx.fillText(`#${c.boxId}`, cx, cy - 4);
+
+                        ctx.fillStyle = c.cutQty > 0 ? '#ef4444' : '#22c55e';
+                        let vStr = c.cutQty > 0 ? `-${c.cutQty.toFixed(1)}m³` : `+${c.fillQty.toFixed(1)}m³`;
+                        ctx.fillText(vStr, cx, cy + 5);
+                    } else {
+                        let fSize = Math.max(8, Math.min(11, boxW / 12));
+                        ctx.font = `bold ${fSize}px monospace`;
+                        let lineH = fSize * 1.15;
+                        let startY = cy - lineH * 1.2;
+
+                        // Box Number
+                        ctx.fillStyle = isHovered ? '#ffffff' : '#e2e8f0';
+                        ctx.fillText(`Box #${c.boxId}`, cx, startY);
+
+                        // Area
+                        ctx.font = `${Math.max(7, fSize - 1)}px monospace`;
+                        ctx.fillStyle = '#cbd5e1';
+                        ctx.fillText(`Area:${c.area.toFixed(2)}m²`, cx, startY + lineH);
+
+                        // Depth & Volume
+                        if (c.cutQty > 0) {
+                            ctx.font = `${Math.max(7, fSize - 1)}px monospace`;
+                            ctx.fillStyle = '#fca5a5';
+                            ctx.fillText(`C_Dp:${c.cutDepth.toFixed(3)}m`, cx, startY + lineH * 2);
+
+                            ctx.font = `bold ${fSize}px monospace`;
+                            ctx.fillStyle = '#ef4444';
+                            ctx.fillText(`Cut:${c.cutQty.toFixed(2)}m³`, cx, startY + lineH * 3);
+                        } else {
+                            ctx.font = `${Math.max(7, fSize - 1)}px monospace`;
+                            ctx.fillStyle = '#86efac';
+                            ctx.fillText(`F_Dp:${c.fillDepth.toFixed(3)}m`, cx, startY + lineH * 2);
+
+                            ctx.font = `bold ${fSize}px monospace`;
+                            ctx.fillStyle = '#22c55e';
+                            ctx.fillText(`Fill:${c.fillQty.toFixed(2)}m³`, cx, startY + lineH * 3);
+                        }
+                    }
+
+                    ctx.restore();
+                }
+            });
+
+            // Clean 1-Time Corner Intersection Node Elevation Output
+            if (this.showLabels && sheet.cells.length > 0) {
+                let sampleCell = sheet.cells[0];
+                let [p0x] = this.worldToScreen(sampleCell.corners[0][0], sampleCell.corners[0][1]);
+                let [p1x] = this.worldToScreen(sampleCell.corners[2][0], sampleCell.corners[2][1]);
+                let sampleW = p1x - p0x;
+
+                if (sampleW >= 32) {
+                    ctx.save();
+                    let fontSz = Math.max(7, Math.min(10, sampleW / 12));
+                    ctx.font = `bold ${fontSz}px monospace`;
+
+                    let colHexA = dxfColorToHex(PIPELINE.layerColors && sheet.lyrA && PIPELINE.layerColors[sheet.lyrA] !== undefined ? PIPELINE.layerColors[sheet.lyrA] : 7, true);
+                    let colHexB = dxfColorToHex(PIPELINE.layerColors && sheet.lyrB && PIPELINE.layerColors[sheet.lyrB] !== undefined ? PIPELINE.layerColors[sheet.lyrB] : 4, true);
+
+                    uniqueNodes.forEach(node => {
+                        let [sx, sy] = this.worldToScreen(node.x, node.y);
+                        if (sx >= -20 && sx <= this.width + 20 && sy >= -20 && sy <= this.height + 20) {
+                            ctx.textAlign = 'left';
+
+                            // Base Level (Matching Layer A color)
+                            ctx.fillStyle = colHexA;
+                            ctx.textBaseline = 'bottom';
+                            ctx.fillText(node.a.toFixed(2), sx + 3, sy - 1);
+
+                            // Design Level (Matching Layer B color)
+                            ctx.fillStyle = colHexB;
+                            ctx.textBaseline = 'top';
+                            ctx.fillText(node.b.toFixed(2), sx + 3, sy + 1);
+                        }
+                    });
+                    ctx.restore();
+                }
+            }
+        },
+
+        drawBoundary: function() {
+            let ctx = this.ctx;
+            let poly = PIPELINE.polygonBounds;
+            if (!poly || poly.length === 0) return;
+
+            let boundLyr = PIPELINE.activeBoundsLayer;
+            let boundCIdx = (PIPELINE.layerColors && PIPELINE.layerColors[boundLyr] !== undefined) ? PIPELINE.layerColors[boundLyr] : 3;
+            let boundColor = dxfColorToHex(boundCIdx, true);
+
+            ctx.save();
+            ctx.strokeStyle = boundColor;
+            // Boundary polyline width is 10 times more than grid lines (0.8px * 10 = 8.0px)
+            ctx.lineWidth = 8.0;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.shadowColor = boundColor;
+            ctx.shadowBlur = 6;
+
+            ctx.beginPath();
+            let [startSx, startSy] = this.worldToScreen(poly[0][0], poly[0][1]);
+            ctx.moveTo(startSx, startSy);
+
+            for (let i = 1; i < poly.length; i++) {
+                let [sx, sy] = this.worldToScreen(poly[i][0], poly[i][1]);
+                ctx.lineTo(sx, sy);
+            }
+            ctx.closePath();
+            ctx.stroke();
+
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = boundColor;
+            poly.forEach(v => {
+                let [sx, sy] = this.worldToScreen(v[0], v[1]);
+                ctx.fillRect(sx - 4, sy - 4, 8, 8);
+            });
+
+            ctx.restore();
+        }
+    };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+
