@@ -5,7 +5,7 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(({ command }) => {
   return {
-    base: command === 'build' ? './' : '/',
+    base: command === 'build' ? '/Excavation-Qty-Extractor/' : '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

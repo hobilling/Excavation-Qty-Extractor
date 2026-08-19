@@ -342,8 +342,11 @@ import wasmUrl from '@mlightcad/libdxfrw-web/dist/libdxfrw.wasm?url';
 import initDwg2Geo, { convert as convertDwg2Geo } from 'dwg2geo';
 import dwg2geoWasmUrl from 'dwg2geo/dwg2geo_wasm_bg.wasm?url';
 
+const resolvedDxfWasm = new URL(wasmUrl, import.meta.url).href;
+const resolvedDwg2GeoWasm = new URL(dwg2geoWasmUrl, import.meta.url).href;
+
 window.convertDwg2Geo = convertDwg2Geo;
-initDwg2Geo({ module_or_path: dwg2geoWasmUrl }).then(() => {
+initDwg2Geo({ module_or_path: resolvedDwg2GeoWasm }).then(() => {
     window.dwg2geoLoaded = true;
 }).catch(e => console.error("dwg2geo init error:", e));
 
@@ -351,7 +354,7 @@ window.createLibDxfRwModule = async (options = {}) => {
     return createModule({
         locateFile: (path) => {
             if (path.endsWith('.wasm')) {
-                return wasmUrl;
+                return resolvedDxfWasm;
             }
             return path;
         },
