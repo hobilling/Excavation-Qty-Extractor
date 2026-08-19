@@ -1,1 +1,1 @@
-Update vite.config.ts base path for GitHub Pages trailing slash issue
+Inject diagnostic tracking into WASM native parser

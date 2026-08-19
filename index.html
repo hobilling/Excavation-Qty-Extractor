@@ -342,11 +342,8 @@ import wasmUrl from '@mlightcad/libdxfrw-web/dist/libdxfrw.wasm?url';
 import initDwg2Geo, { convert as convertDwg2Geo } from 'dwg2geo';
 import dwg2geoWasmUrl from 'dwg2geo/dwg2geo_wasm_bg.wasm?url';
 
-const resolvedDxfWasm = new URL(wasmUrl, import.meta.url).href;
-const resolvedDwg2GeoWasm = new URL(dwg2geoWasmUrl, import.meta.url).href;
-
 window.convertDwg2Geo = convertDwg2Geo;
-initDwg2Geo({ module_or_path: resolvedDwg2GeoWasm }).then(() => {
+initDwg2Geo({ module_or_path: dwg2geoWasmUrl }).then(() => {
     window.dwg2geoLoaded = true;
 }).catch(e => console.error("dwg2geo init error:", e));
 
@@ -354,7 +351,7 @@ window.createLibDxfRwModule = async (options = {}) => {
     return createModule({
         locateFile: (path) => {
             if (path.endsWith('.wasm')) {
-                return resolvedDxfWasm;
+                return wasmUrl;
             }
             return path;
         },
@@ -922,18 +919,20 @@ window.createLibDxfRwModule = async (options = {}) => {
                     }
                     if (database) { database.delete(); database = null; }
                     if (fileHandler) { fileHandler.delete(); fileHandler = null; }
-                    setStatus(`Failed to read DWG structure natively. Format: ${dwgVersionName}. Attempting heuristic fallback extraction...`, "warning");
-                    heuristicDwgFallbackParser(buffer, dwgVersionName);
+                    
+                    setStatus(`Failed to read DWG structure natively (Result=False). Format: ${dwgVersionName}. Attempting heuristic fallback extraction...`, "warning");
+                    heuristicDwgFallbackParser(buffer, dwgVersionName, 'Read returned false');
                 } catch (innerErr) {
                     if (dwg) { try { dwg.delete(); } catch(e){} }
                     if (database) { try { database.delete(); } catch(e){} }
                     if (fileHandler) { try { fileHandler.delete(); } catch(e){} }
-                    throw innerErr;
+                    heuristicDwgFallbackParser(buffer, dwgVersionName, 'Crash: ' + (innerErr.message || innerErr.toString()));
                 }
             }).catch(e => {
                 console.error("DWG to DXF error:", e);
-                setStatus(`Error in native DWG conversion engine. Attempting heuristic fallback extraction...`, "warning");
-                heuristicDwgFallbackParser(buffer, dwgVersionName);
+                let errorMsg = e ? (e.message || e.toString()) : "Unknown error";
+                setStatus(`DWG engine error: ${errorMsg}. Attempting heuristic fallback...`, "warning");
+                heuristicDwgFallbackParser(buffer, dwgVersionName, 'Load Error: ' + errorMsg);
             });
         } catch (err) {
             console.error("DWG parsing error:", err);
@@ -942,7 +941,7 @@ window.createLibDxfRwModule = async (options = {}) => {
         }
     }
 
-    function heuristicDwgFallbackParser(buffer, dwgVersionName) {
+    function heuristicDwgFallbackParser(buffer, dwgVersionName, engineError = '') {
         let bytes = new Uint8Array(buffer);
         let dataView = new DataView(buffer);
 
@@ -1103,7 +1102,7 @@ window.createLibDxfRwModule = async (options = {}) => {
         let totalPts = 0;
         Object.keys(PIPELINE.points).forEach(l => totalPts += PIPELINE.points[l].length);
         buildInterfaceLayerControls();
-        setStatus(`DWG native parsing failed. Extracted ${totalPts} points via binary heuristic fallback across ${PIPELINE.layers.size} exact drawing layers.`, "warning");
+        setStatus(`DWG native parsing failed (${engineError}). Extracted ${totalPts} points via binary heuristic fallback across ${PIPELINE.layers.size} exact drawing layers.`, "warning");
     }
 
     function decompileDxfStructures() {
