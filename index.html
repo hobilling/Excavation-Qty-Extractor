@@ -24,9 +24,8 @@
         .table-responsive { max-height: 450px; overflow-y: auto; font-size: 0.82rem; }
 
         .table-responsive thead { position: sticky; top: 0; z-index: 10; }
-        .table-responsive thead th { position: sticky; top: 0; z-index: 10; background-color: #f8fafc !important; outline: 1px solid #dee2e6; outline-offset: -1px; }
-        .table-responsive thead tr:first-child th { height: 32px; padding-top: 4px; padding-bottom: 4px; box-sizing: border-box; border-bottom: none !important; }
-        .table-responsive thead tr:nth-child(2) th { top: 31px; border-top: 1px solid #dee2e6 !important; }
+        .table-responsive thead th { background-color: #f8fafc !important; outline: 1px solid #dee2e6; outline-offset: -1px; padding-top: 4px; padding-bottom: 4px; }
+        .table-responsive thead tr:nth-child(2) th { border-top: none !important; }
 
         .table th { background-color: #f8fafc !important; color: #475569; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px; vertical-align: middle; }
         .nav-pills .nav-link { color: #475569; font-weight: 500; }
@@ -883,7 +882,9 @@ window.createLibDxfRwModule = async (options = {}) => {
             }
 
             if (!window.createLibDxfRwModule) {
-                setStatus("DWG to DXF engine is still loading. Please try again in a few seconds.", "warning");
+                console.warn("window.createLibDxfRwModule not found yet. Proceeding with fallback parsing...");
+                setStatus("Native DWG engine is unavailable. Attempting heuristic fallback extraction...", "warning");
+                heuristicDwgFallbackParser(buffer, dwgVersionName);
                 return;
             }
 
