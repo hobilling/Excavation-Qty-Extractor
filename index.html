@@ -440,10 +440,12 @@ window.createLibDxfRwModule = async (options = {}) => {
                     PIPELINE.boundaries[val] = deriveBoundaryPolylineForLayer(val);
                 }
                 PIPELINE.polygonBounds = PIPELINE.boundaries[val];
+                buildInterfaceLayerControls();
                 syncMappingCombinationsDropdowns();
                 if (typeof CANVAS_ENGINE !== 'undefined') CANVAS_ENGINE.fitView();
             } else {
                 PIPELINE.polygonBounds = [];
+                buildInterfaceLayerControls();
                 syncMappingCombinationsDropdowns();
             }
             resetRightOutput("Active boundary layer changed. Click 'Compute Mathematical Intersections' to re-calculate.");
@@ -853,18 +855,16 @@ window.createLibDxfRwModule = async (options = {}) => {
                             }
                         });
 
-                        let allPts = [];
-                        Object.keys(PIPELINE.points).forEach(k => {
-                            if (Array.isArray(PIPELINE.points[k])) allPts.push(...PIPELINE.points[k]);
-                        });
                         PIPELINE.layers.forEach(lyr => {
                             if (!PIPELINE.points[lyr] || PIPELINE.points[lyr].length === 0) {
                                 if (PIPELINE.boundaries[lyr] && PIPELINE.boundaries[lyr].length > 0) {
-                                    PIPELINE.points[lyr] = PIPELINE.boundaries[lyr].map(p => ({ x: p[0], y: p[1], z: 10.0 }));
-                                } else if (allPts.length > 0) {
-                                    PIPELINE.points[lyr] = allPts.slice();
+                                    PIPELINE.points[lyr] = PIPELINE.boundaries[lyr].map(p => ({
+                                        x: (p.x !== undefined ? p.x : p[0]),
+                                        y: (p.y !== undefined ? p.y : p[1]),
+                                        z: (p.z !== undefined ? p.z : 10.0)
+                                    }));
                                 } else {
-                                    PIPELINE.points[lyr] = [{ x: 0, y: 0, z: 10 }, { x: 50, y: 0, z: 11 }, { x: 100, y: 100, z: 12 }];
+                                    PIPELINE.points[lyr] = [];
                                 }
                             }
                             if (!PIPELINE.boundaries[lyr] || PIPELINE.boundaries[lyr].length < 3) {
@@ -877,7 +877,7 @@ window.createLibDxfRwModule = async (options = {}) => {
                         return;
                     }
                 } catch (e) {
-                    console.error("dwg2geo error:", e);
+                    console.warn("dwg2geo conversion note (proceeding to native converter/fallback):", e ? (e.message || e) : e);
                 }
             }
 
@@ -972,7 +972,7 @@ window.createLibDxfRwModule = async (options = {}) => {
         }
         if (curUtf16.length >= 2) utf16Strings.push(curUtf16.trim());
 
-        let allStrings = [...asciiStrings, ...utf16Strings];
+        let allStrings = asciiStrings.concat(utf16Strings);
 
         let layerCandidates = new Set();
         const ignoredKeywords = new Set([
@@ -1186,25 +1186,23 @@ window.createLibDxfRwModule = async (options = {}) => {
         }
 
         // Ensure every DXF drawing layer has both survey points and polyline boundaries for UI dropdowns
-        let allPts = [];
-        Object.keys(PIPELINE.points).forEach(k => {
-            if (Array.isArray(PIPELINE.points[k])) allPts.push(...PIPELINE.points[k]);
-        });
+        // Ensure every DXF drawing layer has both survey points and polyline boundaries for UI dropdowns
         PIPELINE.layers.forEach(lyr => {
             if (!PIPELINE.points[lyr] || PIPELINE.points[lyr].length === 0) {
                 if (PIPELINE.boundaries[lyr] && PIPELINE.boundaries[lyr].length > 0) {
-                    PIPELINE.points[lyr] = PIPELINE.boundaries[lyr].map(p => ({ x: p[0], y: p[1], z: 10.0 }));
-                } else if (allPts.length > 0) {
-                    PIPELINE.points[lyr] = allPts.slice();
+                    PIPELINE.points[lyr] = PIPELINE.boundaries[lyr].map(p => ({
+                        x: (p.x !== undefined ? p.x : p[0]),
+                        y: (p.y !== undefined ? p.y : p[1]),
+                        z: (p.z !== undefined ? p.z : 10.0)
+                    }));
                 } else {
-                    PIPELINE.points[lyr] = [{ x: 0, y: 0, z: 10 }, { x: 50, y: 0, z: 11 }, { x: 100, y: 100, z: 12 }];
+                    PIPELINE.points[lyr] = [];
                 }
             }
             if (!PIPELINE.boundaries[lyr] || PIPELINE.boundaries[lyr].length < 3) {
                 PIPELINE.boundaries[lyr] = deriveBoundaryPolylineForLayer(lyr);
             }
         });
-
         buildInterfaceLayerControls();
     }
 
@@ -1234,20 +1232,32 @@ window.createLibDxfRwModule = async (options = {}) => {
 
     function deriveBoundaryPolylineForLayer(lyr) {
         let pts = PIPELINE.points[lyr] || [];
-        if (pts.length < 3) {
-            pts = [];
-            Object.keys(PIPELINE.points).forEach(k => {
-                if (Array.isArray(PIPELINE.points[k])) {
-                    pts.push(...PIPELINE.points[k]);
-                }
-            });
-        }
-        if (pts.length >= 3) {
-            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-            pts.forEach(p => {
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        let count = 0;
+
+        if (pts && pts.length >= 3) {
+            for (let i = 0; i < pts.length; i++) {
+                let p = pts[i];
                 if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
                 if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
-            });
+                count++;
+            }
+        } else {
+            // Find global bounding box across all points without large array allocations or spread operators
+            for (let k in PIPELINE.points) {
+                let layerPts = PIPELINE.points[k];
+                if (Array.isArray(layerPts)) {
+                    for (let i = 0; i < layerPts.length; i++) {
+                        let p = layerPts[i];
+                        if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+                        if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+                        count++;
+                    }
+                }
+            }
+        }
+
+        if (count >= 3 && minX !== Infinity) {
             let padX = (maxX - minX) * 0.02 || 5;
             let padY = (maxY - minY) * 0.02 || 5;
             return [
@@ -1351,6 +1361,82 @@ window.createLibDxfRwModule = async (options = {}) => {
         }
     }
 
+    /**
+     * BOUNDARY FILTERING & GEOMETRIC CONTAINMENT ENGINE
+     * Strictly verifies whether survey elevation coordinates lie inside or on the perimeter
+     * of the Active Outer Site Boundary Layer.
+     */
+    function getCleanPolygon(poly) {
+        if (!poly || poly.length < 3) return [];
+        let clean = [];
+        for (let i = 0; i < poly.length; i++) {
+            let pt = poly[i];
+            let px = pt.x !== undefined ? pt.x : pt[0];
+            let py = pt.y !== undefined ? pt.y : pt[1];
+            if (clean.length > 0) {
+                let prev = clean[clean.length - 1];
+                if (Math.abs(px - prev[0]) < 1e-7 && Math.abs(py - prev[1]) < 1e-7) {
+                    continue;
+                }
+            }
+            clean.push([px, py]);
+        }
+        if (clean.length >= 3) {
+            let first = clean[0];
+            let last = clean[clean.length - 1];
+            if (Math.abs(first[0] - last[0]) < 1e-7 && Math.abs(first[1] - last[1]) < 1e-7) {
+                clean.pop();
+            }
+        }
+        return clean;
+    }
+
+    function isPointInPolygon(pt, poly) {
+        if (!poly || poly.length < 3) return true;
+        let px = pt.x !== undefined ? pt.x : pt[0];
+        let py = pt.y !== undefined ? pt.y : pt[1];
+        
+        let clean = getCleanPolygon(poly);
+        let n = clean.length;
+        if (n < 3) return true;
+        
+        // 1. Precise boundary edge segment collision test (within tolerance)
+        for (let i = 0, j = n - 1; i < n; j = i++) {
+            let x1 = clean[j][0], y1 = clean[j][1];
+            let x2 = clean[i][0], y2 = clean[i][1];
+            
+            let dx = x2 - x1;
+            let dy = y2 - y1;
+            let cross = (px - x1) * dy - (py - y1) * dx;
+            if (Math.abs(cross) <= 1e-7) {
+                let dot = (px - x1) * dx + (py - y1) * dy;
+                let lenSq = dx * dx + dy * dy;
+                if (dot >= -1e-7 && dot <= lenSq + 1e-7) {
+                    return true; // Directly on boundary edge
+                }
+            }
+        }
+        
+        // 2. Jordan Curve Theorem / Even-Odd Ray-Casting Algorithm
+        let inside = false;
+        for (let i = 0, j = n - 1; i < n; j = i++) {
+            let xi = clean[i][0], yi = clean[i][1];
+            let xj = clean[j][0], yj = clean[j][1];
+            let intersect = ((yi > py) !== (yj > py)) &&
+                (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    }
+
+    function getPointsInsideBoundary(layerName, poly) {
+        let pts = (PIPELINE.points && PIPELINE.points[layerName]) ? PIPELINE.points[layerName] : [];
+        if (!poly || poly.length < 3) return pts;
+        let clean = getCleanPolygon(poly);
+        if (clean.length < 3) return pts;
+        return pts.filter(p => isPointInPolygon(p, clean));
+    }
+
     function buildInterfaceLayerControls() {
         const boundaryBtn = document.getElementById('boundaryLayerSelectBtn');
         const boundaryOptionsContainer = document.getElementById('boundaryOptionsContainer');
@@ -1367,11 +1453,10 @@ window.createLibDxfRwModule = async (options = {}) => {
             PIPELINE.availableLevels = ['OLG', 'PGL1', 'PGL2', 'PGL3'];
         }
 
-        let allLayersSet = new Set([
-            ...Object.keys(PIPELINE.boundaries),
-            ...Array.from(PIPELINE.layers),
-            ...Object.keys(PIPELINE.points)
-        ]);
+        let allLayersSet = new Set();
+        Object.keys(PIPELINE.boundaries).forEach(k => allLayersSet.add(k));
+        PIPELINE.layers.forEach(k => allLayersSet.add(k));
+        Object.keys(PIPELINE.points).forEach(k => allLayersSet.add(k));
 
         let sortedLayers = Array.from(allLayersSet).sort();
 
@@ -1466,20 +1551,34 @@ window.createLibDxfRwModule = async (options = {}) => {
                 let pPts = PIPELINE.points[lyr] ? PIPELINE.points[lyr].length : 0;
                 let cIdx = PIPELINE.layerColors[lyr] !== undefined ? PIPELINE.layerColors[lyr] : 7;
                 let lyrColorHex = dxfColorToHex(cIdx);
+                
+                let hasBoundary = (PIPELINE.polygonBounds && PIPELINE.polygonBounds.length >= 3);
+                let inBoundPts = hasBoundary ? getPointsInsideBoundary(lyr, PIPELINE.polygonBounds).length : pPts;
+                
                 let desc = bPts >= 3 ? `${bPts} polyline nodes` : `${pPts} survey pts`;
+                if (bPts < 3 && pPts > 0 && hasBoundary) {
+                    if (inBoundPts === pPts) {
+                        desc = `${inBoundPts} pts (in boundary)`;
+                    } else if (inBoundPts > 0) {
+                        desc = `${inBoundPts}/${pPts} in boundary`;
+                    } else {
+                        desc = `0/${pPts} in boundary (Outside)`;
+                    }
+                }
+                
                 let isActive = (mappedLyr === lyr);
-                let activeCls = isActive ? 'active bg-primary' : '';
-                let textColor = isActive ? '#ffffff' : lyrColorHex;
-                let bgCircleColor = isActive ? '#ffffff' : lyrColorHex;
-                let badgeBg = isActive ? 'rgba(255,255,255,0.2)' : lyrColorHex + '18';
-                let badgeBorder = isActive ? 'rgba(255,255,255,0.4)' : lyrColorHex + '40';
-                let badgeText = isActive ? '#ffffff' : lyrColorHex;
+                let activeCls = isActive ? "active bg-primary" : "";
+                let textColor = isActive ? "#ffffff" : lyrColorHex;
+                let bgCircleColor = isActive ? "#ffffff" : lyrColorHex;
+                let badgeBg = isActive ? "rgba(255,255,255,0.2)" : (inBoundPts === 0 && pPts > 0 && hasBoundary ? "#fee2e2" : lyrColorHex + "18");
+                let badgeBorder = isActive ? "rgba(255,255,255,0.4)" : (inBoundPts === 0 && pPts > 0 && hasBoundary ? "#fca5a5" : lyrColorHex + "40");
+                let badgeText = isActive ? "#ffffff" : (inBoundPts === 0 && pPts > 0 && hasBoundary ? "#dc2626" : lyrColorHex);
                 
                 let isUsedElsewhere = false;
                 Object.keys(PIPELINE.levelLayers).forEach(k => {
                     if (k !== lvlKey && PIPELINE.levelLayers[k] === lyr) isUsedElsewhere = true;
                 });
-                let disabledCls = isUsedElsewhere ? 'disabled opacity-50' : '';
+                let disabledCls = isUsedElsewhere ? "disabled opacity-50" : "";
 
                 optionsHtml += `<li>
                     <a class="dropdown-item layer-opt d-flex align-items-center justify-content-between gap-2 py-2 ${activeCls} ${disabledCls}" href="#" data-value="${lyr}" style="color: ${textColor} !important; font-weight: 600;">
@@ -1494,11 +1593,54 @@ window.createLibDxfRwModule = async (options = {}) => {
                 </li>`;
             });
 
+            let hasBoundary = (PIPELINE.polygonBounds && PIPELINE.polygonBounds.length >= 3);
+            let inPts = 0;
+            let totPts = 0;
+            let boundStatusHtml = "";
+            let buttonPillHtml = "";
+
+            if (mappedLyr) {
+                totPts = PIPELINE.points[mappedLyr] ? PIPELINE.points[mappedLyr].length : 0;
+                inPts = hasBoundary ? getPointsInsideBoundary(mappedLyr, PIPELINE.polygonBounds).length : totPts;
+
+                if (hasBoundary) {
+                    if (inPts > 0) {
+                        buttonPillHtml = `<span class="badge bg-success-subtle text-success border border-success-subtle px-1.5 py-0.5" style="font-size:0.68rem;" title="${inPts} survey levels inside active boundary will be calculated">${inPts} in boundary</span>`;
+                        boundStatusHtml = `
+                            <div class="mt-1 d-flex justify-content-between align-items-center small px-1" style="font-size: 0.74rem;">
+                                <span class="text-success fw-bold d-flex align-items-center gap-1">
+                                    <i class="bi bi-shield-check"></i> ${inPts} levels inside boundary active
+                                </span>
+                                ${totPts > inPts ? `<span class="text-muted font-monospace" style="font-size:0.7rem;">(${totPts - inPts} outside excluded)</span>` : ""}
+                            </div>`;
+                    } else if (totPts > 0) {
+                        buttonPillHtml = `<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-1.5 py-0.5" style="font-size:0.68rem;" title="0 survey points inside active boundary">0 in boundary</span>`;
+                        boundStatusHtml = `
+                            <div class="mt-1 d-flex justify-content-between align-items-center small px-1 text-danger fw-bold" style="font-size: 0.74rem;">
+                                <span class="d-flex align-items-center gap-1">
+                                    <i class="bi bi-exclamation-triangle-fill"></i> 0 levels inside active boundary!
+                                </span>
+                                <span class="text-danger font-monospace" style="font-size:0.7rem;">(${totPts} outside ignored)</span>
+                            </div>`;
+                    } else {
+                        boundStatusHtml = `
+                            <div class="mt-1 small px-1 text-muted" style="font-size: 0.74rem;">
+                                CAD polyline/vector layer (0 point levels)
+                            </div>`;
+                    }
+                } else {
+                    boundStatusHtml = `
+                        <div class="mt-1 small px-1 text-muted" style="font-size: 0.74rem;">
+                            ${totPts} total survey points detected
+                        </div>`;
+                }
+            }
+
             div.innerHTML = `
                 <div class="d-flex flex-column gap-2 w-100">
                     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                         <div class="d-flex align-items-center gap-2">
-                            <span class="badge px-2.5 py-1" style="background-color: ${mappedLyr ? layerColorHex : '#334155'} !important; color: #ffffff !important; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.3px;">Level: ${lvlKey}</span>
+                            <span class="badge px-2.5 py-1" style="background-color: ${mappedLyr ? layerColorHex : "#334155"} !important; color: #ffffff !important; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.3px;">Level: ${lvlKey}</span>
                         </div>
                         <button class="btn btn-sm btn-outline-secondary py-0 px-2 small" type="button" onclick="activateLayerPicker('level:${lvlKey}')" title="Pick layer from preview map">🎯</button>
                     </div>
@@ -1507,9 +1649,12 @@ window.createLibDxfRwModule = async (options = {}) => {
                     </div>
                     <div class="w-100">
                         <div class="dropdown">
-                            <button class="btn btn-sm text-start w-100 d-flex justify-content-between align-items-center fw-bold bg-white" type="button" data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-auto-close="outside" aria-expanded="false" style="color: ${mappedLyr ? layerColorHex : '#000000'} !important; border: 1px solid ${mappedLyr ? layerColorHex : '#dee2e6'}; border-radius: 4px;">
-                                <span class="text-truncate">${mappedLyr ? `▪ ${mappedLyr}` : '-- Omit Layer --'}</span>
-                                <i class="bi bi-chevron-down text-secondary"></i>
+                            <button class="btn btn-sm text-start w-100 d-flex justify-content-between align-items-center fw-bold bg-white" type="button" data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-auto-close="outside" aria-expanded="false" style="color: ${mappedLyr ? layerColorHex : "#000000"} !important; border: 1px solid ${mappedLyr ? layerColorHex : "#dee2e6"}; border-radius: 4px;">
+                                <span class="text-truncate">${mappedLyr ? `▪ ${mappedLyr}` : "-- Omit Layer --"}</span>
+                                <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                                    ${buttonPillHtml}
+                                    <i class="bi bi-chevron-down text-secondary"></i>
+                                </div>
                             </button>
                             <ul class="dropdown-menu w-100 shadow-sm" style="max-height: 250px; overflow-y: auto;">
                                 <li class="px-2 pb-1 sticky-top bg-white">
@@ -1520,6 +1665,7 @@ window.createLibDxfRwModule = async (options = {}) => {
                             </ul>
                         </div>
                     </div>
+                    ${boundStatusHtml}
                 </div>
             `;
             container.appendChild(div);
@@ -1558,8 +1704,22 @@ window.createLibDxfRwModule = async (options = {}) => {
                 e.preventDefault();
                 if (this.classList.contains('disabled')) return;
                 let lKey = this.closest('.layer-item-card').querySelector('.level-label-input').getAttribute('data-level');
-                PIPELINE.levelLayers[lKey] = this.getAttribute('data-value');
+                let chosenLyr = this.getAttribute('data-value');
+                PIPELINE.levelLayers[lKey] = chosenLyr;
                 buildInterfaceLayerControls();
+                
+                if (chosenLyr) {
+                    let hasBoundary = (PIPELINE.polygonBounds && PIPELINE.polygonBounds.length >= 3);
+                    let inPts = hasBoundary ? getPointsInsideBoundary(chosenLyr, PIPELINE.polygonBounds).length : (PIPELINE.points[chosenLyr] ? PIPELINE.points[chosenLyr].length : 0);
+                    let totPts = PIPELINE.points[chosenLyr] ? PIPELINE.points[chosenLyr].length : 0;
+                    if (totPts > 0 && inPts === 0) {
+                        setStatus(`Warning: Layer '${chosenLyr}' assigned to ${lKey} has ${totPts} survey points, but 0 are inside the active site boundary. Outside levels are excluded from calculation.`, "warning");
+                    } else if (totPts > 0 && inPts < totPts) {
+                        setStatus(`Assigned layer '${chosenLyr}' to level '${lKey}' (${inPts} levels inside boundary selected; ${totPts - inPts} outside excluded).`, "info");
+                    } else if (inPts > 0) {
+                        setStatus(`Assigned layer '${chosenLyr}' to level '${lKey}' (${inPts} levels inside boundary selected for calculation).`, "info");
+                    }
+                }
                 resetRightOutput("Level sequence assignment updated. Click 'Compute Mathematical Intersections' to re-calculate.");
             });
         });
@@ -1775,7 +1935,7 @@ window.createLibDxfRwModule = async (options = {}) => {
     const computePolygonArea = calculatePolygonArea;
 
     function computeExactClippedPolygon(gridCorners, boundaryPoly) {
-        let subject = [...boundaryPoly];
+        let subject = boundaryPoly.slice();
         // Clip against each edge of the strictly convex grid box
         for (let i = 0; i < gridCorners.length; i++) {
             let p1 = gridCorners[i];
@@ -1824,9 +1984,17 @@ window.createLibDxfRwModule = async (options = {}) => {
         const sizeInput = parseFloat(document.getElementById('gridSize').value);
         PIPELINE.gridSize = isNaN(sizeInput) ? 3.0 : sizeInput;
         const poly = PIPELINE.polygonBounds;
+        if (!poly || poly.length < 3) {
+            setStatus("Please select a valid Active Perimeter Boundary Layer before running calculations.", "danger");
+            return;
+        }
 
         let trackingSelections = [];
         document.querySelectorAll('.combination-checker-box:checked').forEach(c => trackingSelections.push(c.value));
+        if (trackingSelections.length === 0) {
+            setStatus("Please select at least one Profile Sequence Combination to calculate.", "danger");
+            return;
+        }
 
         let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
         poly.forEach(v => {
@@ -1835,17 +2003,18 @@ window.createLibDxfRwModule = async (options = {}) => {
         });
 
         PIPELINE.sheets = {};
-
         for (let key of trackingSelections) {
             let components = key.split('-');
             let lyrAName = PIPELINE.roles[components[0]];
             let lyrBName = PIPELINE.roles[components[1]];
             
-            let poolA = PIPELINE.points[lyrAName];
-            let poolB = PIPELINE.points[lyrBName];
+            // STRICT FILTERING: Only levels/points inside Active Outer Site Boundary Layer are fetched and used!
+            let poolA = getPointsInsideBoundary(lyrAName, poly);
+            let poolB = getPointsInsideBoundary(lyrBName, poly);
 
             if (!poolA || poolA.length === 0 || !poolB || poolB.length === 0) {
-                setStatus(`Error: One of the selected layers (${lyrAName} or ${lyrBName}) contains no point elevations. Do not assign the boundary trace to a surface!`, "danger");
+                let missingLyr = (!poolA || poolA.length === 0) ? `${lyrAName} (${components[0]})` : `${lyrBName} (${components[1]})`;
+                setStatus(`Calculation halted: Layer '${missingLyr}' contains 0 elevation points inside the Active Site Boundary (${PIPELINE.activeBoundsLayer || 'Boundary'}). Outside levels are strictly excluded from calculation.`, "danger");
                 return;
             }
 
@@ -2680,18 +2849,26 @@ window.createLibDxfRwModule = async (options = {}) => {
             
             if (PIPELINE.polygonBounds && PIPELINE.polygonBounds.length > 0) {
                 PIPELINE.polygonBounds.forEach(pt => {
-                    if (pt[0] < minX) minX = pt[0]; if (pt[0] > maxX) maxX = pt[0];
-                    if (pt[1] < minY) minY = pt[1]; if (pt[1] > maxY) maxY = pt[1];
-                });
-            } else {
-                Object.keys(PIPELINE.points).forEach(lyr => {
-                    PIPELINE.points[lyr].forEach(p => {
-                        if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
-                        if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
-                    });
+                    let px = pt.x !== undefined ? pt.x : pt[0];
+                    let py = pt.y !== undefined ? pt.y : pt[1];
+                    if (px < minX) minX = px; if (px > maxX) maxX = px;
+                    if (py < minY) minY = py; if (py > maxY) maxY = py;
                 });
             }
-
+            Object.keys(PIPELINE.points).forEach(lyr => {
+                PIPELINE.points[lyr].forEach(p => {
+                    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+                    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+                });
+            });
+            Object.keys(PIPELINE.boundaries).forEach(lyr => {
+                PIPELINE.boundaries[lyr].forEach(pt => {
+                    let px = pt.x !== undefined ? pt.x : pt[0];
+                    let py = pt.y !== undefined ? pt.y : pt[1];
+                    if (px < minX) minX = px; if (px > maxX) maxX = px;
+                    if (py < minY) minY = py; if (py > maxY) maxY = py;
+                });
+            });
             if (minX === Infinity) { minX = 0; maxX = 100; minY = 0; maxY = 100; }
             this.bounds = { minX, maxX, minY, maxY };
         },
@@ -2811,6 +2988,7 @@ window.createLibDxfRwModule = async (options = {}) => {
                             PIPELINE.boundaries[bestLyr] = deriveBoundaryPolylineForLayer(bestLyr);
                         }
                         PIPELINE.polygonBounds = PIPELINE.boundaries[bestLyr];
+                        buildInterfaceLayerControls();
                         syncMappingCombinationsDropdowns();
                         resetRightOutput(`Selected boundary layer '${bestLyr}' from preview map. Click 'Compute Mathematical Intersections' to calculate.`);
                     } else if (activePickerType.startsWith('level:')) {
@@ -2818,7 +2996,19 @@ window.createLibDxfRwModule = async (options = {}) => {
                         if (!PIPELINE.levelLayers) PIPELINE.levelLayers = {};
                         PIPELINE.levelLayers[lvlKey] = bestLyr;
                         buildInterfaceLayerControls();
-                        resetRightOutput(`Assigned layer '${bestLyr}' to level '${lvlKey}' from preview map. Click 'Compute Mathematical Intersections' to calculate.`);
+                        let hasBoundary = (PIPELINE.polygonBounds && PIPELINE.polygonBounds.length >= 3);
+                        let inPts = hasBoundary ? getPointsInsideBoundary(bestLyr, PIPELINE.polygonBounds).length : (PIPELINE.points[bestLyr] ? PIPELINE.points[bestLyr].length : 0);
+                        let totPts = PIPELINE.points[bestLyr] ? PIPELINE.points[bestLyr].length : 0;
+                        if (totPts > 0 && inPts === 0) {
+                            setStatus(`Warning: Layer '${bestLyr}' assigned to ${lvlKey} has 0 points inside active boundary. Outside levels are excluded from calculation.`, "warning");
+                            resetRightOutput(`Assigned '${bestLyr}' to '${lvlKey}', but 0 points lie inside active boundary.`);
+                        } else if (totPts > 0 && inPts < totPts) {
+                            setStatus(`Assigned layer '${bestLyr}' to level '${lvlKey}' (${inPts} levels inside boundary selected; ${totPts - inPts} outside excluded).`, "info");
+                            resetRightOutput(`Assigned layer '${bestLyr}' to level '${lvlKey}' (${inPts} points inside boundary). Click 'Compute Mathematical Intersections' to calculate.`);
+                        } else {
+                            setStatus(`Assigned layer '${bestLyr}' to level '${lvlKey}' (${inPts} levels inside boundary selected).`, "info");
+                            resetRightOutput(`Assigned layer '${bestLyr}' to level '${lvlKey}' (${inPts} points inside boundary). Click 'Compute Mathematical Intersections' to calculate.`);
+                        }
                     }
                 }
                 activePickerType = null;
@@ -3112,27 +3302,28 @@ window.createLibDxfRwModule = async (options = {}) => {
         drawPoints: function() {
             let ctx = this.ctx;
             ctx.save();
-
+            let poly = PIPELINE.polygonBounds;
+            let cleanPoly = (poly && poly.length >= 3) ? getCleanPolygon(poly) : null;
             Object.keys(PIPELINE.points).forEach(lyr => {
                 let pts = PIPELINE.points[lyr];
                 let cIdx = (PIPELINE.layerColors && PIPELINE.layerColors[lyr] !== undefined) ? PIPELINE.layerColors[lyr] : 7;
                 let color = dxfColorToHex(cIdx, true);
-
                 let mappedRole = '';
                 if (PIPELINE.roles) {
                     Object.keys(PIPELINE.roles).forEach(r => {
                         if (PIPELINE.roles[r] === lyr) mappedRole = r;
                     });
                 }
-
                 let isMapped = !!mappedRole;
-
                 pts.forEach(p => {
+                    let isInside = cleanPoly ? isPointInPolygon(p, cleanPoly) : false;
+                    let isSelectedInside = isMapped && isInside;
+
                     let [sx, sy] = this.worldToScreen(p.x, p.y);
                     if (sx >= -20 && sx <= this.width + 20 && sy >= -20 && sy <= this.height + 20) {
                         ctx.beginPath();
-                        if (isMapped) {
-                            // Highlighted node circle with white ring for selected profile sequence levels
+                        if (isSelectedInside) {
+                            // Highlighted node circle with white ring ONLY for selected profile sequence levels inside boundary
                             ctx.arc(sx, sy, 3.5, 0, Math.PI * 2);
                             ctx.fillStyle = color;
                             ctx.fill();
@@ -3140,24 +3331,30 @@ window.createLibDxfRwModule = async (options = {}) => {
                             ctx.strokeStyle = '#ffffff';
                             ctx.stroke();
                         } else {
-                            // Regular survey point node
+                            // As-is fetched from drawing for all other points (including outside points):
+                            // standard survey point node in original layer color
                             ctx.arc(sx, sy, 2, 0, Math.PI * 2);
                             ctx.fillStyle = color;
                             ctx.fill();
                         }
-
                         if (this.showPoints) {
                             let zVal = p.z !== undefined ? p.z.toFixed(2) : '';
                             if (zVal) {
-                                let fSize = isMapped ? Math.max(8, Math.min(20, this.scale * 1.5)) : Math.max(7, Math.min(14, this.scale * 1.0));
-                                if (fSize >= 7) {
-                                    if (isMapped) {
+                                if (isSelectedInside) {
+                                    // Highlighted formatting with sequence role tag ONLY for inside boundary points
+                                    let fSize = Math.max(8, Math.min(20, this.scale * 1.5));
+                                    if (fSize >= 7) {
                                         ctx.font = `bold ${fSize}px monospace`;
                                         ctx.fillStyle = color;
                                         ctx.textAlign = 'left';
                                         ctx.textBaseline = 'bottom';
                                         ctx.fillText(`[${mappedRole}] ${zVal}m`, sx + 5, sy - 2);
-                                    } else {
+                                    }
+                                } else {
+                                    // As-is fetched from drawing for all other points (including outside points):
+                                    // raw level value without role tag or selected formatting
+                                    let fSize = Math.max(7, Math.min(14, this.scale * 1.0));
+                                    if (fSize >= 7) {
                                         ctx.font = `${fSize}px monospace`;
                                         ctx.fillStyle = color;
                                         ctx.textAlign = 'left';
@@ -3170,7 +3367,6 @@ window.createLibDxfRwModule = async (options = {}) => {
                     }
                 });
             });
-
             ctx.restore();
         },
 
